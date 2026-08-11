@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store-context';
 import { formatCurrency, sumAmounts, CATEGORY_COLORS, CATEGORY_ICONS, EXPENSE_CATEGORIES, formatDate } from '@/lib/utils';
-import { ExpenseEntry, DailyExpense } from '@/lib/types';
+import { ExpenseEntry } from '@/lib/types';
 import { generateId } from '@/lib/store';
 
 export default function ExpensesPage() {
@@ -33,8 +33,9 @@ export default function ExpensesPage() {
     ...(state.settings.customCategories || [])
   ];
 
-  // Combined expenses (fixed + daily)
-  const allCombinedExpenses = [
+  // Combined expenses with STRICT DEDUPLICATION by (date + amount + category + note)
+  const seenKeys = new Set<string>();
+  const rawCombined = [
     ...expenses,
     ...daily.map(d => ({
       id: d.id,
@@ -46,21 +47,37 @@ export default function ExpensesPage() {
       note: d.note,
       kmReading: d.kmReading,
     }))
-  ].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  ];
 
-  // Petrol Specific Stats
+  const allCombinedExpenses = rawCombined.filter(e => {
+    const dateStr = (e.date || '').substring(0, 10);
+    const key = `${dateStr}_${e.amount}_${e.category}_${(e.note || e.name || '').trim().toLowerCase()}`;
+    if (seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  // Petrol Specific Stats & Fuel Mileage Calculation
   const petrolLogs = allCombinedExpenses
     .filter(e => e.category === 'Petrol' || e.category === 'Transport')
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   const lastPetrol = petrolLogs[0];
   const prevPetrol = petrolLogs[1];
+
   const kmDifference = (lastPetrol?.kmReading && prevPetrol?.kmReading)
     ? (lastPetrol.kmReading - prevPetrol.kmReading)
     : null;
 
-  const totalExpenses = sumAmounts(expenses);
-  const totalCount = expenses.length;
+  // Fuel Mileage Calculation (assuming ~₹104 per liter reference price in INR, or amount / 1.2 in USD)
+  const refFuelPrice = currency === '₹' ? 104 : 3.8;
+  const estLitersFilled = lastPetrol ? (lastPetrol.amount / refFuelPrice) : 0;
+  const estMileage = (kmDifference && kmDifference > 0 && estLitersFilled > 0)
+    ? (kmDifference / estLitersFilled).toFixed(1)
+    : null;
+
+  const totalExpenses = allCombinedExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalCount = allCombinedExpenses.length;
 
   const expenseByCategory = allCombinedExpenses.reduce((acc, curr) => {
     acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
@@ -146,13 +163,13 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      {/* DEDICATED PETROL TRACKER GRID BOX */}
-      <div className="bg-gradient-to-r from-rose-950/40 via-[#0e0e1c] to-purple-950/40 border border-rose-500/30 rounded-2xl p-6 relative overflow-hidden shadow-xl">
-        <div className="flex items-center justify-between mb-4">
+      {/* DEDICATED PETROL TRACKER & MILEAGE GRID BOX */}
+      <div className="bg-gradient-to-r from-rose-950/40 via-[#0e0e1c] to-purple-950/40 border border-rose-500/30 rounded-2xl p-6 relative overflow-hidden shadow-xl space-y-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-3xl">⛽</span>
             <div>
-              <h2 className="text-lg font-bold text-rose-300">Petrol Tracker & Last Fill Stats</h2>
+              <h2 className="text-lg font-bold text-rose-300">Petrol Tracker & Fuel Mileage Stats</h2>
               <p className="text-xs text-rose-200/60">Monitored from your daily & expense logs</p>
             </div>
           </div>
@@ -164,10 +181,10 @@ export default function ExpensesPage() {
         </div>
 
         {lastPetrol ? (
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
             <div className="bg-black/40 border border-white/10 rounded-xl p-4">
               <span className="text-xs text-gray-400 font-medium block">LAST FILL AMOUNT</span>
-              <span className="text-2xl font-bold text-rose-400 mt-1 block">
+              <span className="text-xl font-bold text-rose-400 mt-1 block">
                 {formatCurrency(lastPetrol.amount, currency)}
               </span>
               <span className="text-[11px] text-gray-500 mt-1 block">{lastPetrol.note || 'Petrol Fill'}</span>
@@ -175,26 +192,36 @@ export default function ExpensesPage() {
 
             <div className="bg-black/40 border border-white/10 rounded-xl p-4">
               <span className="text-xs text-gray-400 font-medium block">DATE OF LAST FILL</span>
-              <span className="text-lg font-bold text-white mt-1 block">
+              <span className="text-base font-bold text-white mt-1 block">
                 {formatDate(lastPetrol.date)}
               </span>
-              <span className="text-[11px] text-gray-500 mt-1 block">{lastPetrol.name || 'Station'}</span>
+              <span className="text-[11px] text-gray-500 mt-1 block">Log date</span>
             </div>
 
             <div className="bg-black/40 border border-white/10 rounded-xl p-4">
               <span className="text-xs text-gray-400 font-medium block">KM READING (ODOMETER)</span>
-              <span className="text-2xl font-bold text-purple-400 mt-1 block">
+              <span className="text-xl font-bold text-purple-400 mt-1 block">
                 {lastPetrol.kmReading ? `${lastPetrol.kmReading.toLocaleString()} km` : 'Not recorded'}
               </span>
               <span className="text-[11px] text-gray-500 mt-1 block">Last logged reading</span>
             </div>
 
             <div className="bg-black/40 border border-white/10 rounded-xl p-4">
-              <span className="text-xs text-gray-400 font-medium block">DISTANCED DRIVEN SINCE PREV</span>
-              <span className="text-2xl font-bold text-emerald-400 mt-1 block">
+              <span className="text-xs text-gray-400 font-medium block">DISTANCE DRIVEN</span>
+              <span className="text-xl font-bold text-emerald-400 mt-1 block">
                 {kmDifference !== null ? `+${kmDifference.toLocaleString()} km` : '—'}
               </span>
-              <span className="text-[11px] text-gray-500 mt-1 block">Calculated from prior reading</span>
+              <span className="text-[11px] text-gray-500 mt-1 block">Since prior fill</span>
+            </div>
+
+            <div className="bg-black/40 border border-white/10 rounded-xl p-4">
+              <span className="text-xs text-gray-400 font-medium block">EST. FUEL MILEAGE</span>
+              <span className="text-xl font-bold text-amber-400 mt-1 block">
+                {estMileage ? `${estMileage} km/L` : '—'}
+              </span>
+              <span className="text-[11px] text-gray-500 mt-1 block">
+                {estMileage ? `~${estLitersFilled.toFixed(1)}L filled` : 'Needs 2 fills'}
+              </span>
             </div>
           </div>
         ) : (
@@ -204,30 +231,24 @@ export default function ExpensesPage() {
         )}
       </div>
 
-      {/* Category Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Clean 3 Metric Cards (Removed redundant duplicate Petrol Spend card) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
           <span className="text-xs text-gray-400 uppercase font-semibold">Total Expenses Logged</span>
           <p className="text-2xl font-bold text-rose-400 mt-1">{formatCurrency(totalExpenses, currency)}</p>
         </div>
         <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-          <span className="text-xs text-gray-400 uppercase font-semibold">Entries Count</span>
+          <span className="text-xs text-gray-400 uppercase font-semibold">Total Entries Count</span>
           <p className="text-2xl font-bold text-white mt-1">{totalCount} items</p>
         </div>
         <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-          <span className="text-xs text-gray-400 uppercase font-semibold">Petrol Spend</span>
-          <p className="text-2xl font-bold text-rose-400 mt-1">
-            {formatCurrency(expenseByCategory['Petrol'] || 0, currency)}
-          </p>
-        </div>
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-          <span className="text-xs text-gray-400 uppercase font-semibold">Categories Active</span>
+          <span className="text-xs text-gray-400 uppercase font-semibold">Active Categories</span>
           <p className="text-2xl font-bold text-purple-400 mt-1">{Object.keys(expenseByCategory).length}</p>
         </div>
       </div>
 
       {/* CATEGORY TABS (SEPARATE TAB FOR EACH CATEGORY) */}
-      <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 space-y-4">
+      <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 space-y-4 shadow-xl">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-lg font-semibold">Expenses List by Category</h3>
           <span className="text-xs text-gray-400">Select a category tab below to isolate views</span>
@@ -281,48 +302,52 @@ export default function ExpensesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {filteredExpenses.map((exp) => (
-                <tr key={exp.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="p-4 text-gray-400 text-xs">{formatDate(exp.date)}</td>
-                  <td className="p-4 font-medium">
-                    {exp.name}
-                    {exp.note && <span className="text-xs text-gray-500 block">{exp.note}</span>}
-                  </td>
-                  <td className="p-4">
-                    <span
-                      className="px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1"
-                      style={{
-                        backgroundColor: `${CATEGORY_COLORS[exp.category] || '#94a3b8'}20`,
-                        color: CATEGORY_COLORS[exp.category] || '#94a3b8',
-                      }}
-                    >
-                      {CATEGORY_ICONS[exp.category] || '📦'} {exp.category}
-                    </span>
-                  </td>
-                  <td className="p-4 text-xs font-mono text-purple-300">
-                    {exp.kmReading ? `⛽ ${exp.kmReading.toLocaleString()} km` : '—'}
-                  </td>
-                  <td className="p-4 text-right font-bold text-rose-400">
-                    -{formatCurrency(exp.amount, currency)}
-                  </td>
-                  <td className="p-4 text-right">
-                    <button
-                      onClick={() => {
-                        store.deleteExpense(exp.id);
-                        store.deleteDaily(exp.id);
-                        refresh();
-                      }}
-                      className="text-gray-500 hover:text-rose-400 p-1"
-                    >
-                      🗑️
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filteredExpenses.map((exp) => {
+                const isFuel = exp.category === 'Petrol' || exp.category === 'Transport';
+                const kmDisplay = isFuel && exp.kmReading ? `⛽ ${exp.kmReading.toLocaleString()} km` : '—';
+
+                return (
+                  <tr key={exp.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="p-4 text-gray-400 text-xs">{formatDate(exp.date)}</td>
+                    <td className="p-4 font-bold">{exp.name || exp.note || '-'}</td>
+                    <td className="p-4">
+                      <span
+                        className="px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1"
+                        style={{
+                          backgroundColor: `${CATEGORY_COLORS[exp.category] || '#94a3b8'}20`,
+                          color: CATEGORY_COLORS[exp.category] || '#94a3b8',
+                        }}
+                      >
+                        {CATEGORY_ICONS[exp.category] || '📦'} {exp.category}
+                      </span>
+                    </td>
+                    <td className="p-4 text-xs font-mono text-purple-300 font-medium">
+                      {kmDisplay}
+                    </td>
+                    <td className="p-4 text-right font-bold text-rose-400">
+                      -{formatCurrency(exp.amount, currency)}
+                    </td>
+                    <td className="p-4 text-right flex justify-end gap-1">
+                      <button
+                        onClick={() => { setEditing(exp); setFormCategory(exp.category); setModalOpen(true); }}
+                        className="text-gray-400 hover:text-white p-1"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => { store.deleteExpense(exp.id); store.deleteDaily(exp.id); refresh(); }}
+                        className="text-gray-400 hover:text-rose-400 p-1"
+                      >
+                        🗑️
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredExpenses.length === 0 && (
                 <tr>
                   <td colSpan={6} className="text-center py-8 text-gray-500">
-                    No expenses found in category "{selectedCat}".
+                    No expenses found in this category.
                   </td>
                 </tr>
               )}
@@ -335,38 +360,21 @@ export default function ExpensesPage() {
       {modalOpen && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-lg font-bold">
-              {editing ? 'Edit Expense' : 'Add New Expense'}
-            </h3>
-            <form onSubmit={handleSaveExpense} className="space-y-4">
+            <h3 className="text-lg font-bold">{editing ? 'Edit Expense' : 'Add Expense'}</h3>
+            <form onSubmit={handleSaveExpense} className="space-y-3 text-sm">
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Expense Description / Name</label>
+                <label className="text-xs text-gray-400 block mb-1">Expense Name / Note</label>
                 <input
                   type="text"
                   name="name"
                   required
                   defaultValue={editing?.name || ''}
-                  placeholder="e.g. Petrol fill, Dinner, Medicine"
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white"
+                  placeholder="e.g. Petrol fill, Grocery run"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Category</label>
-                  <select
-                    name="category"
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white"
-                  >
-                    {allCategories.map((c) => (
-                      <option key={c} value={c} className="bg-[#141426]">
-                        {CATEGORY_ICONS[c] || '📦'} {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
                 <div>
                   <label className="text-xs text-gray-400 block mb-1">Amount ({currency})</label>
                   <input
@@ -375,23 +383,34 @@ export default function ExpensesPage() {
                     name="amount"
                     required
                     defaultValue={editing?.amount || ''}
-                    placeholder="0.00"
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white"
+                    placeholder="2500"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-bold"
                   />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Category</label>
+                  <select
+                    name="category"
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
+                  >
+                    {allCategories.map(c => (
+                      <option key={c} value={c} className="bg-[#141426]">{c}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
               {(formCategory === 'Petrol' || formCategory === 'Transport') && (
-                <div className="bg-purple-950/30 border border-purple-500/30 p-3 rounded-xl">
-                  <label className="text-xs text-purple-300 font-semibold block mb-1">
-                    ⛽ Odometer / KM Reading
-                  </label>
+                <div>
+                  <label className="text-xs text-purple-300 font-semibold block mb-1">⛽ Odometer KM Reading (For Petrol)</label>
                   <input
                     type="number"
                     name="kmReading"
                     defaultValue={editing?.kmReading || ''}
-                    placeholder="e.g. 45280"
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white"
+                    placeholder="e.g. 79000"
+                    className="w-full bg-purple-950/30 border border-purple-500/40 rounded-xl p-3 text-white font-mono"
                   />
                 </div>
               )}
@@ -403,7 +422,7 @@ export default function ExpensesPage() {
                   name="date"
                   required
                   defaultValue={editing?.date || new Date().toISOString().split('T')[0]}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
                 />
               </div>
 
@@ -413,8 +432,8 @@ export default function ExpensesPage() {
                   type="text"
                   name="note"
                   defaultValue={editing?.note || ''}
-                  placeholder="Notes..."
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white"
+                  placeholder="Additional notes..."
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
                 />
               </div>
 
@@ -422,52 +441,15 @@ export default function ExpensesPage() {
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10"
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl text-sm font-semibold bg-purple-600 hover:bg-purple-500 text-white"
+                  className="px-5 py-2 rounded-xl font-semibold bg-purple-600 hover:bg-purple-500 text-white shadow-lg"
                 >
                   Save Expense
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD CUSTOM CATEGORY */}
-      {customCatModalOpen && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-lg font-bold">➕ Add Custom Category</h3>
-            <form onSubmit={handleAddCustomCategory} className="space-y-4">
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Category Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Gym & Fitness, Subscriptions"
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white"
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCustomCatModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl text-sm font-semibold bg-purple-600 hover:bg-purple-500 text-white"
-                >
-                  Add Category
                 </button>
               </div>
             </form>
@@ -480,32 +462,71 @@ export default function ExpensesPage() {
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl max-h-[85vh] overflow-y-auto">
             <h3 className="text-lg font-bold">Set Monthly Category Budgets</h3>
-            <form onSubmit={handleSaveBudget} className="space-y-3">
-              {allCategories.map((c) => (
-                <div key={c} className="flex items-center justify-between gap-4">
-                  <span className="text-sm">{CATEGORY_ICONS[c] || '📦'} {c}</span>
+            <form onSubmit={handleSaveBudget} className="space-y-3 text-sm">
+              {allCategories.map(cat => (
+                <div key={cat} className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-semibold flex items-center gap-1 text-gray-300">
+                    {CATEGORY_ICONS[cat] || '📦'} {cat}
+                  </span>
                   <input
                     type="number"
-                    name={c}
-                    defaultValue={budgets[c] || ''}
+                    name={cat}
+                    defaultValue={budgets[cat] || ''}
                     placeholder="No limit"
-                    className="w-32 bg-black/40 border border-white/10 rounded-xl p-2 text-sm text-white text-right"
+                    className="w-36 bg-black/40 border border-white/10 rounded-xl p-2.5 text-xs text-white text-right font-bold"
                   />
                 </div>
               ))}
-              <div className="flex justify-end gap-2 pt-3">
+              <div className="flex justify-end gap-2 pt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setBudgetModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10"
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl text-sm font-semibold bg-purple-600 hover:bg-purple-500 text-white"
+                  className="px-5 py-2 rounded-xl font-semibold bg-purple-600 text-white text-xs"
                 >
                   Save Budgets
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD CUSTOM CATEGORY */}
+      {customCatModalOpen && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-lg font-bold">Add Custom Expense Category</h3>
+            <form onSubmit={handleAddCustomCategory} className="space-y-4 text-sm">
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Category Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Pet Care, Gaming, Maintenance"
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCustomCatModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl font-semibold bg-purple-600 text-white"
+                >
+                  Add Category
                 </button>
               </div>
             </form>

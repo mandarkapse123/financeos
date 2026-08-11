@@ -23,8 +23,9 @@ export default function DailyPage() {
 
   if (!mounted) return null;
 
-  // Combine Daily entries + Expense entries so iPhone Shortcut & Expense logs are 100% synced!
-  const combinedDaily = [
+  // Combine Daily entries + Expense entries with STRICT DEDUPLICATION
+  const seenKeys = new Set<string>();
+  const rawCombined = [
     ...rawDaily,
     ...rawExpenses.map(e => ({
       id: e.id,
@@ -36,7 +37,15 @@ export default function DailyPage() {
       note: e.name || e.note,
       kmReading: e.kmReading,
     }))
-  ].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  ];
+
+  const combinedDaily = rawCombined.filter(d => {
+    const dateStr = (d.date || '').substring(0, 10);
+    const key = `${dateStr}_${d.amount}_${d.category}_${(d.note || '').trim().toLowerCase()}`;
+    if (seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todaysLog = combinedDaily.filter(d => (d.date || '').startsWith(todayStr));
@@ -202,7 +211,7 @@ export default function DailyPage() {
                     </span>
                   </td>
                   <td className="p-4 text-xs font-mono text-purple-300">
-                    {d.kmReading ? `⛽ ${d.kmReading.toLocaleString()} km` : '—'}
+                    {(d.category === 'Petrol' || d.category === 'Transport') && d.kmReading ? `⛽ ${d.kmReading.toLocaleString()} km` : '—'}
                   </td>
                   <td className="p-4 text-right font-bold text-rose-400">
                     -{formatCurrency(d.amount, currency)}
