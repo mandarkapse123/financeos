@@ -27,7 +27,6 @@ export default function RentPortal() {
   const { state, store, refresh } = useStore();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
 
-  if (!mounted) return null;
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
   const [toasts, setToasts] = useState<{ id: number, msg: string, type: string }[]>([]);
 
@@ -98,6 +97,8 @@ export default function RentPortal() {
       ]
     };
   }, [rentEntries, rentExpenses]);
+
+  if (!mounted) return null;
 
   const addRent = (e: React.FormEvent) => {
     e.preventDefault();

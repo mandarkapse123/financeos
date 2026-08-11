@@ -14,8 +14,6 @@ export default function GoalsPage() {
   const goals = store.getGoals();
   const currency = state.settings.currency;
 
-  if (!mounted) return null;
-
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [contribModalOpen, setContribModalOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
@@ -30,6 +28,8 @@ export default function GoalsPage() {
 
   const [contribAmount, setContribAmount] = useState('');
   const [contribNote, setContribNote] = useState('');
+
+  if (!mounted) return null;
 
   const handleSaveGoal = (e: React.FormEvent) => {
     e.preventDefault();

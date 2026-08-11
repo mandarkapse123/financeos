@@ -16,8 +16,6 @@ export default function ExpensesPage() {
   const currency = state.settings.currency;
   const budgets = state.settings.budgets || {};
 
-  if (!mounted) return null;
-
   const [modalOpen, setModalOpen] = useState(false);
   const [budgetModalOpen, setBudgetModalOpen] = useState(false);
   const [customCatModalOpen, setCustomCatModalOpen] = useState(false);
@@ -26,6 +24,8 @@ export default function ExpensesPage() {
   const [editing, setEditing] = useState<ExpenseEntry | null>(null);
   const [selectedCat, setSelectedCat] = useState<string>('All');
   const [formCategory, setFormCategory] = useState<string>('Petrol');
+
+  if (!mounted) return null;
 
   // All categories (default + custom)
   const allCategories = [

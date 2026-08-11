@@ -30,8 +30,7 @@ export default function InvestmentsPage() {
   const { state, refresh, store } = useStore();
   const investments = store.getInvestments();
 
-  if (!mounted) return null;
-  const currency = state.settings.currency;
+  const currency = state.settings.currency || '₹';
   const [loading, setLoading] = useState(false);
 
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -40,6 +39,8 @@ export default function InvestmentsPage() {
 
   const [parsedHoldings, setParsedHoldings] = useState<ParsedGrowwHolding[]>([]);
   const [growwClientCode, setGrowwClientCode] = useState<string>('');
+
+  if (!mounted) return null;
 
   const totalInvested = investments.reduce((sum, inv) => sum + inv.investedAmount, 0);
   const totalCurrent = investments.reduce((sum, inv) => sum + (inv.currentValue || inv.investedAmount), 0);
