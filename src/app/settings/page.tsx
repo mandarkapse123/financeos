@@ -378,35 +378,44 @@ export default function SettingsPage() {
 function doPost(e) { return processRequest(e); }
 
 function processRequest(e) {
-  const ss = SpreadsheetApp.openById('1ioJyzUBHXKDBuWEhYq0y6h9XiU71LBExihBZKVw7MZ4');
-  const sh = ss.getSheetByName('Sheet1');
-  const p = (e && e.parameter) ? e.parameter : {};
-
-  const amount = p.amount || p.amt;
-  if (amount) {
-    const category = p.category || p.cat || '';
-    const note = p.note || '';
-    const method = p.method || '';
-    const km = p.kmReading || p.km || p.odometer || '';
-    sh.appendRow([new Date(), amount, category, note, method, km]);
-    return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  const data = sh.getDataRange().getValues();
-  const rows = [];
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][1]) {
-      rows.push({
-        date: data[i][0],
-        amount: data[i][1],
-        category: data[i][2],
-        note: data[i][3],
-        method: data[i][4],
-        kmReading: data[i][5] || ''
-      });
+  try {
+    let ss;
+    try {
+      ss = SpreadsheetApp.openById('1ioJyzUBHXKDBuWEhYq0y6h9XiU71LBExihBZKVw7MZ4');
+    } catch (err) {
+      ss = SpreadsheetApp.getActiveSpreadsheet();
     }
+    let sh = ss.getSheetByName('Sheet1') || ss.getSheets()[0];
+    const p = (e && e.parameter) ? e.parameter : {};
+    const amount = p.amount || p.amt;
+
+    if (amount) {
+      const category = p.category || p.cat || 'Expenses';
+      const note = p.note || '';
+      const method = p.method || 'UPI';
+      const km = p.kmReading || p.km || p.odometer || '';
+      sh.appendRow([new Date().toLocaleString(), amount, category, note, method, km]);
+      return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const data = sh.getDataRange().getValues();
+    const rows = [];
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][1] !== "" && data[i][1] !== null) {
+        rows.push({
+          date: String(data[i][0] || ''),
+          amount: String(data[i][1] || ''),
+          category: String(data[i][2] || 'Expenses'),
+          note: String(data[i][3] || ''),
+          method: String(data[i][4] || 'UPI'),
+          kmReading: String(data[i][5] || '')
+        });
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify(rows)).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', error: err.toString() })).setMimeType(ContentService.MimeType.JSON);
   }
-  return ContentService.createTextOutput(JSON.stringify(rows)).setMimeType(ContentService.MimeType.JSON);
 }`}
                 </pre>
               </div>
