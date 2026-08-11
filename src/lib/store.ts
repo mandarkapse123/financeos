@@ -340,13 +340,15 @@ class Store {
   upsertIncome(item: AppState['income'][0]) { this.state.income = this.upsert(this.state.income, item); this.save(); }
   deleteIncome(id: string) { this.state.income = this.remove(this.state.income, id); this.save(); }
 
-  // Cleanly Sync Google Sheet items (mirroring Google Sheet state, clearing removed rows, no duplicates)
-  syncSheetItems(items: Array<{ id?: string; date: string; amount: number; category: string; note?: string; method?: string; kmReading?: number }>) {
+  // Cleanly Sync Google Sheet items with STABLE MERGING to prevent re-creation loops
+  syncSheetItems(items: Array<{ id?: string; date: string; amount: number; category: string; note?: string; method?: string; kmReading?: number; bankAccount?: string }>) {
     const accountId = this.state.currentAccountId;
     const deletedList = this.state.settings.deletedIds || [];
 
-    const sheetDaily: AppState['daily'] = [];
-    const sheetExpenses: AppState['expenses'] = [];
+    const existingDailySigs = new Set(this.state.daily.map(d => `${(d.date || '').substring(0, 10)}_${d.amount}_${(d.category || '').toLowerCase()}`));
+    const existingExpenseSigs = new Set(this.state.expenses.map(e => `${(e.date || '').substring(0, 10)}_${e.amount}_${(e.category || '').toLowerCase()}`));
+
+    let updated = false;
 
     (items || []).forEach((item, index) => {
       const amt = parseFloat(item.amount as any);
@@ -359,46 +361,47 @@ class Store {
       const sheetId = `sheet_row_${index}_${dateStr}_${amt}_${cat}`;
       const signature = `${dateStr}_${amt}_${cat.toLowerCase()}`;
 
-      // Skip if explicitly deleted by user in FinanceOS!
+      // Skip if explicitly deleted by user in FinanceOS
       if (deletedList.includes(sheetId) || deletedList.includes(signature)) {
         return;
       }
 
-      sheetDaily.push({
-        id: sheetId,
-        accountId,
-        amount: amt,
-        category: cat,
-        paymentMethod: item.method || 'UPI',
-        date: dateStr,
-        note: note,
-        kmReading: kmVal,
-      });
+      if (!existingDailySigs.has(signature)) {
+        this.state.daily.push({
+          id: sheetId,
+          accountId,
+          bankAccount: item.bankAccount || 'HDFC Bank',
+          amount: amt,
+          category: cat,
+          paymentMethod: item.method || 'UPI',
+          date: dateStr,
+          note: note,
+          kmReading: kmVal,
+        });
+        existingDailySigs.add(signature);
+        updated = true;
+      }
 
-      sheetExpenses.push({
-        id: sheetId,
-        accountId,
-        name: cat === 'Petrol' ? 'Petrol Fill' : (note || cat),
-        amount: amt,
-        category: cat,
-        date: dateStr,
-        note: note,
-        kmReading: kmVal,
-      });
+      if (!existingExpenseSigs.has(signature)) {
+        this.state.expenses.push({
+          id: sheetId,
+          accountId,
+          bankAccount: item.bankAccount || 'HDFC Bank',
+          name: cat === 'Petrol' ? 'Petrol Fill' : (note || cat),
+          amount: amt,
+          category: cat,
+          date: dateStr,
+          note: note,
+          kmReading: kmVal,
+        });
+        existingExpenseSigs.add(signature);
+        updated = true;
+      }
     });
 
-    // Replace sheet entries for this account with the exact new list from Google Sheet
-    this.state.daily = [
-      ...this.state.daily.filter(d => d.accountId !== accountId || !d.id.startsWith('sheet_')),
-      ...sheetDaily
-    ];
-
-    this.state.expenses = [
-      ...this.state.expenses.filter(e => e.accountId !== accountId || !e.id.startsWith('sheet_')),
-      ...sheetExpenses
-    ];
-
-    this.save();
+    if (updated) {
+      this.saveLocalStorageOnly();
+    }
   }
 
   // Sync Investments from payload or sheet across devices

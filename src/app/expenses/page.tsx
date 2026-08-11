@@ -40,6 +40,7 @@ export default function ExpensesPage() {
     ...daily.map(d => ({
       id: d.id,
       accountId: d.accountId,
+      bankAccount: d.bankAccount,
       name: d.note || d.category,
       amount: d.amount,
       category: d.category,
@@ -116,6 +117,7 @@ export default function ExpensesPage() {
     const item: ExpenseEntry = {
       id: editing?.id || generateId(),
       accountId: state.currentAccountId,
+      bankAccount: (formData.get('bankAccount') as string) || 'HDFC Bank',
       name: formData.get('name') as string,
       amount: parseFloat(formData.get('amount') as string),
       category: cat,
@@ -372,6 +374,7 @@ export default function ExpensesPage() {
             <thead className="bg-[#141426] text-gray-400 text-xs uppercase font-semibold">
               <tr>
                 <th className="p-4">Date</th>
+                <th className="p-4">Account</th>
                 <th className="p-4">Name / Note</th>
                 <th className="p-4">Category</th>
                 {showKmColumn && <th className="p-4">KM Reading</th>}
@@ -387,6 +390,11 @@ export default function ExpensesPage() {
                 return (
                   <tr key={exp.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-4 text-gray-400 text-xs">{formatDate(exp.date)}</td>
+                    <td className="p-4">
+                      <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap">
+                        🏦 {exp.bankAccount || 'HDFC Bank'}
+                      </span>
+                    </td>
                     <td className="p-4 font-bold">{exp.name || exp.note || '-'}</td>
                     <td className="p-4">
                       <span
@@ -452,6 +460,19 @@ export default function ExpensesPage() {
                   placeholder="e.g. Petrol fill, Grocery run"
                   className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
                 />
+              </div>
+
+              <div>
+                <label className="text-xs text-purple-300 font-semibold block mb-1">🏦 Bank Account</label>
+                <select
+                  name="bankAccount"
+                  defaultValue={editing?.bankAccount || 'HDFC Bank'}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-medium"
+                >
+                  <option value="HDFC Bank" className="bg-[#141426]">🏦 HDFC Bank</option>
+                  <option value="ICICI Bank" className="bg-[#141426]">🏦 ICICI Bank</option>
+                  <option value="Personal Account" className="bg-[#141426]">🏦 Personal Account</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

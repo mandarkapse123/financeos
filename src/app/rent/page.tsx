@@ -15,6 +15,7 @@ import {
   BarElement, LineElement, PointElement, Legend, Tooltip, Filler
 } from 'chart.js';
 import { Bar, Line } from 'react-chartjs-2';
+import * as XLSX from 'xlsx';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Legend, Tooltip, Filler);
 
@@ -31,11 +32,12 @@ export default function RentPortal() {
   const [toasts, setToasts] = useState<{ id: number, msg: string, type: string }[]>([]);
 
   // Inputs
+  const [rentBankAccount, setRentBankAccount] = useState('HDFC Bank');
   const [rentDate, setRentDate] = useState('');
   const [rentAmount, setRentAmount] = useState('');
   const [rentMode, setRentMode] = useState('');
   const [rentNotes, setRentNotes] = useState('');
-  
+
   const [expDate, setExpDate] = useState('');
   const [expDesc, setExpDesc] = useState('');
   const [expAmount, setExpAmount] = useState('');
@@ -45,6 +47,96 @@ export default function RentPortal() {
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [rentImportModalOpen, setRentImportModalOpen] = useState(false);
+  const [parsedRentEntries, setParsedRentEntries] = useState<any[]>([]);
+  const excelRentInputRef = useRef<HTMLInputElement>(null);
+
+  const handleRentFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileName = file.name.toLowerCase();
+    const reader = new FileReader();
+
+    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) {
+      reader.onload = (evt) => {
+        try {
+          const bstr = evt.target?.result;
+          const wb = XLSX.read(bstr, { type: 'binary' });
+          const wsname = wb.SheetNames[0];
+          const ws = wb.Sheets[wsname];
+          const data: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+          const imported: any[] = [];
+          for (let i = 1; i < data.length; i++) {
+            const row = data[i];
+            if (!row || row.length === 0) continue;
+
+            const dateVal = String(row[0] || '').trim();
+            const amtVal = parseFloat(String(row[1] || row[2] || '').replace(/[^0-9.]/g, ''));
+            if (!isNaN(amtVal) && amtVal > 0) {
+              imported.push({
+                date: dateVal.length === 10 ? dateVal : new Date().toISOString().split('T')[0],
+                amount: amtVal,
+                period: String(row[2] || row[3] || 'Monthly Rent'),
+                mode: String(row[3] || row[4] || 'Bank Transfer'),
+                notes: String(row[4] || row[5] || 'Imported statement'),
+                bankAccount: String(row[5] || 'HDFC Bank')
+              });
+            }
+          }
+          setParsedRentEntries(imported);
+          setRentImportModalOpen(true);
+        } catch (err) {
+          showToast('Error parsing Excel/CSV file', 'error');
+        }
+      };
+      reader.readAsBinaryString(file);
+    } else {
+      reader.onload = (evt) => {
+        const text = String(evt.target?.result || '');
+        const lines = text.split('\n');
+        const imported: any[] = [];
+        lines.forEach(line => {
+          const numbers = line.match(/\d+[\d,.]*/g);
+          if (numbers && numbers.length > 0) {
+            const amt = parseFloat(numbers[numbers.length - 1].replace(/,/g, ''));
+            if (!isNaN(amt) && amt >= 1000) {
+              imported.push({
+                date: new Date().toISOString().split('T')[0],
+                amount: amt,
+                period: 'Rent Payment',
+                mode: 'Bank/PDF',
+                notes: line.substring(0, 40),
+                bankAccount: 'HDFC Bank'
+              });
+            }
+          }
+        });
+        setParsedRentEntries(imported);
+        setRentImportModalOpen(true);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const confirmRentImport = () => {
+    parsedRentEntries.forEach(item => {
+      store.upsertRentEntry({
+        id: generateId(),
+        accountId: state.currentAccountId,
+        bankAccount: item.bankAccount || 'HDFC Bank',
+        date: item.date,
+        amount: item.amount,
+        period: item.period,
+        mode: item.mode,
+        notes: item.notes,
+      });
+    });
+    refresh();
+    setRentImportModalOpen(false);
+    showToast(`Successfully imported ${parsedRentEntries.length} rent entries!`, 'success');
+  };
 
   const showToast = (msg: string, type = 'success') => {
     const id = Date.now();
@@ -106,12 +198,14 @@ export default function RentPortal() {
     store.upsertRentEntry({
       id: generateId(),
       accountId: state.currentAccountId,
+      bankAccount: rentBankAccount,
       date: rentDate,
       amount: parseFloat(rentAmount),
       period: '',
       mode: rentMode,
       notes: rentNotes
     });
+    refresh();
     showToast('Rent entry added');
     setRentDate(''); setRentAmount(''); setRentMode(''); setRentNotes('');
   };
@@ -337,10 +431,41 @@ export default function RentPortal() {
               );
             })()}
 
-            <form onSubmit={addRent} className="bg-[#0e0e1c] border border-white/[0.07] p-5 rounded-2xl grid grid-cols-1 sm:grid-cols-5 gap-4 items-end">
+            <div className="flex justify-between items-center bg-[#0e0e1c] border border-white/[0.07] p-4 rounded-2xl">
+              <div>
+                <h4 className="font-bold text-sm text-white">Rent Ledger Statements & Import</h4>
+                <p className="text-xs text-white/50">Manually add entries or upload Excel / PDF statement files</p>
+              </div>
+              <div>
+                <input
+                  type="file"
+                  ref={excelRentInputRef}
+                  onChange={handleRentFileUpload}
+                  accept=".xlsx,.xls,.csv,.pdf,.txt"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => excelRentInputRef.current?.click()}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.25)]"
+                >
+                  <Upload size={14} /> Import Rent Statement (Excel / PDF)
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={addRent} className="bg-[#0e0e1c] border border-white/[0.07] p-5 rounded-2xl grid grid-cols-1 sm:grid-cols-6 gap-4 items-end">
               <div>
                 <label className="text-xs text-white/50 mb-1 block">Date</label>
                 <input type="date" required value={rentDate} onChange={e=>setRentDate(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg p-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-white/50 mb-1 block">Bank Account</label>
+                <select value={rentBankAccount} onChange={e=>setRentBankAccount(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg p-2.5 text-sm">
+                  <option value="HDFC Bank">🏦 HDFC Bank</option>
+                  <option value="ICICI Bank">🏦 ICICI Bank</option>
+                  <option value="Personal">🏦 Personal Account</option>
+                </select>
               </div>
               <div>
                 <label className="text-xs text-white/50 mb-1 block">Amount</label>
@@ -362,21 +487,33 @@ export default function RentPortal() {
             <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden">
               <table className="w-full text-sm text-left">
                 <thead className="bg-[#141426] text-white/50 text-xs uppercase font-bold">
-                  <tr><th className="px-6 py-4">Date</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4">Mode</th><th className="px-6 py-4">Notes</th><th className="px-6 py-4"></th></tr>
+                  <tr>
+                    <th className="px-6 py-4">Date</th>
+                    <th className="px-6 py-4">Account</th>
+                    <th className="px-6 py-4">Amount</th>
+                    <th className="px-6 py-4">Mode</th>
+                    <th className="px-6 py-4">Notes</th>
+                    <th className="px-6 py-4"></th>
+                  </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.07]">
                   {rentEntries.map(e => (
                     <tr key={e.id} className="hover:bg-white/[0.02]">
                       <td className="px-6 py-4">{formatDate(e.date)}</td>
+                      <td className="px-6 py-4">
+                        <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-full">
+                          🏦 {e.bankAccount || 'HDFC Bank'}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 font-medium text-emerald-400">{formatCurrency(Number(e.amount), currency)}</td>
                       <td className="px-6 py-4">{e.mode || '-'}</td>
                       <td className="px-6 py-4 text-white/70">{e.notes || '-'}</td>
                       <td className="px-6 py-4 text-right">
-                        <button onClick={() => { store.deleteRentEntry(e.id); showToast('Deleted entry', 'error'); }} className="text-white/30 hover:text-rose-400"><Trash2 size={16}/></button>
+                        <button onClick={() => { store.deleteRentEntry(e.id); refresh(); showToast('Deleted entry', 'error'); }} className="text-white/30 hover:text-rose-400"><Trash2 size={16}/></button>
                       </td>
                     </tr>
                   ))}
-                  {rentEntries.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-white/40">No rent entries yet</td></tr>}
+                  {rentEntries.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-white/40">No rent entries yet</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -476,6 +613,37 @@ export default function RentPortal() {
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setReceiptImage(null)}>
           <button className="absolute top-4 right-4 p-2 text-white/50 hover:text-white"><X size={24}/></button>
           <img src={receiptImage} alt="Receipt Full" className="max-w-full max-h-[90vh] object-contain rounded-lg" onClick={e => e.stopPropagation()} />
+        </div>
+      )}
+
+      {rentImportModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl w-full max-w-xl p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center pb-3 border-b border-white/10">
+              <h3 className="font-bold text-white text-base">📥 Confirm Imported Rent Entries ({parsedRentEntries.length})</h3>
+              <button onClick={() => setRentImportModalOpen(false)} className="text-gray-400 hover:text-white"><X size={20}/></button>
+            </div>
+            <p className="text-xs text-gray-400">Preview of Parsed Rent Ledger rows from your statement file:</p>
+            <div className="max-h-60 overflow-y-auto space-y-2">
+              {parsedRentEntries.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center p-3 rounded-xl bg-white/[0.03] text-xs">
+                  <div>
+                    <p className="font-bold text-white">{item.period || 'Rent Payment'} ({item.mode})</p>
+                    <p className="text-gray-400">{item.date} &middot; {item.notes}</p>
+                  </div>
+                  <p className="font-bold text-emerald-400 text-sm">+{formatCurrency(item.amount, currency)}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setRentImportModalOpen(false)} className="flex-1 bg-white/5 hover:bg-white/10 text-white rounded-xl p-3 text-xs font-semibold">
+                Cancel
+              </button>
+              <button onClick={confirmRentImport} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl p-3 text-xs font-bold transition-all shadow-lg shadow-emerald-500/20">
+                Confirm & Import {parsedRentEntries.length} Entries
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

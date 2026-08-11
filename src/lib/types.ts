@@ -32,6 +32,7 @@ export interface IncomeEntry {
 export interface ExpenseEntry {
   id: string;
   accountId: string;
+  bankAccount?: string;
   name: string;
   amount: number;
   category: string;
@@ -96,6 +97,7 @@ export interface GoalContribution {
 export interface DailyExpense {
   id: string;
   accountId: string;
+  bankAccount?: string;
   amount: number;
   category: string;
   paymentMethod: string;
@@ -107,6 +109,7 @@ export interface DailyExpense {
 export interface RentEntry {
   id: string;
   accountId: string;
+  bankAccount?: string;
   date: string;
   amount: number;
   period: string;

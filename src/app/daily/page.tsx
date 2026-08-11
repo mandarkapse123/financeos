@@ -29,6 +29,7 @@ export default function DailyPage() {
     ...rawExpenses.map(e => ({
       id: e.id,
       accountId: e.accountId,
+      bankAccount: e.bankAccount,
       amount: e.amount,
       category: e.category,
       paymentMethod: 'UPI',
@@ -113,10 +114,13 @@ export default function DailyPage() {
     const cat = formData.get('category') as string;
     const km = formData.get('kmReading') as string;
 
+    const bankAcc = (formData.get('bankAccount') as string) || 'HDFC Bank';
+
     const item: DailyExpense = {
       id: editing?.id || generateId(),
       accountId: state.currentAccountId,
-      amount: amt,
+      bankAccount: bankAcc,
+      amount: parseFloat(formData.get('amount') as string),
       category: cat,
       paymentMethod: formData.get('paymentMethod') as string || 'UPI',
       date: formData.get('date') as string,
@@ -128,6 +132,7 @@ export default function DailyPage() {
     store.upsertExpense({
       id: item.id,
       accountId: item.accountId,
+      bankAccount: bankAcc,
       name: item.note || item.category,
       amount: item.amount,
       category: item.category,
@@ -269,6 +274,7 @@ export default function DailyPage() {
             <thead className="bg-[#141426] text-gray-400 text-xs uppercase font-semibold">
               <tr>
                 <th className="p-4">Date</th>
+                <th className="p-4">Account</th>
                 <th className="p-4">Category</th>
                 <th className="p-4">Description / Note</th>
                 <th className="p-4">Payment Method</th>
@@ -285,6 +291,11 @@ export default function DailyPage() {
                 return (
                   <tr key={d.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-4 text-gray-400 text-xs">{formatDate(d.date)}</td>
+                    <td className="p-4">
+                      <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap">
+                        🏦 {d.bankAccount || 'HDFC Bank'}
+                      </span>
+                    </td>
                     <td className="p-4">
                       <span
                         className="px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1"
@@ -340,6 +351,18 @@ export default function DailyPage() {
           <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <h3 className="text-lg font-bold">{editing ? 'Edit Daily Log' : 'Log Daily Expense'}</h3>
             <form onSubmit={handleSaveDaily} className="space-y-3 text-sm">
+              <div>
+                <label className="text-xs text-purple-300 font-semibold block mb-1">🏦 Bank Account</label>
+                <select
+                  name="bankAccount"
+                  defaultValue={editing?.bankAccount || 'HDFC Bank'}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-medium"
+                >
+                  <option value="HDFC Bank" className="bg-[#141426]">🏦 HDFC Bank</option>
+                  <option value="ICICI Bank" className="bg-[#141426]">🏦 ICICI Bank</option>
+                  <option value="Personal Account" className="bg-[#141426]">🏦 Personal Account</option>
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-400 block mb-1">Amount ({currency})</label>
