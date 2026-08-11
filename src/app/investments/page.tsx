@@ -8,6 +8,8 @@ import { Bar, Doughnut } from 'react-chartjs-2';
 import { INVESTMENT_TYPES, CHART_PALETTE, Investment } from '@/lib/types';
 import { generateId } from '@/lib/store';
 
+import * as XLSX from 'xlsx';
+
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Legend, Tooltip);
 
 interface ParsedGrowwHolding {
@@ -67,17 +69,86 @@ export default function InvestmentsPage() {
     setLoading(false);
   };
 
-  // Groww Statement / CSV / Text Parser
+  // Groww Statement / Excel XLSX / CSV / Text Parser
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      parseGrowwStatement(text);
-    };
-    reader.readAsText(file);
+    const fileName = file.name.toLowerCase();
+
+    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const buffer = evt.target?.result as ArrayBuffer;
+          const workbook = XLSX.read(buffer, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const jsonRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+          parseExcelRows(jsonRows);
+        } catch (err) {
+          console.error('Error reading Excel workbook:', err);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        parseGrowwStatement(text);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const parseExcelRows = (rows: any[][]) => {
+    const holdings: ParsedGrowwHolding[] = [];
+    let detectedClientCode = '';
+
+    rows.forEach((row) => {
+      if (!Array.isArray(row) || row.length === 0) return;
+      const strRow = row.map(cell => String(cell || '').trim());
+
+      strRow.forEach(cell => {
+        const match = cell.match(/(UCC|Client Code|Demat No)[:\s]+([A-Z0-9]+)/i);
+        if (match) detectedClientCode = match[2];
+      });
+
+      if (strRow.some(c => c.toLowerCase().includes('stock name') || c.toLowerCase().includes('isin') || c.toLowerCase().includes('symbol'))) {
+        return;
+      }
+
+      const name = strRow[0] || strRow[1];
+      if (!name || name.toLowerCase().includes('total') || name.toLowerCase().includes('summary')) return;
+
+      const isin = strRow.find(c => c.match(/^INE|^INF/i)) || '';
+      const qty = parseFloat(strRow.find(c => !isNaN(parseFloat(c)) && parseFloat(c) > 0 && parseFloat(c) < 100000) || '1');
+      const nums = strRow.map(c => parseFloat(c)).filter(n => !isNaN(n) && n > 0);
+
+      if (nums.length >= 2) {
+        const avgPrice = nums[0] || 0;
+        const buyVal = nums[1] || (qty * avgPrice);
+        const closePrice = nums[2] || avgPrice;
+        const closeVal = nums[3] || (qty * closePrice);
+        const pnl = closeVal - buyVal;
+
+        holdings.push({
+          clientCode: detectedClientCode,
+          name,
+          isin,
+          type: isin.startsWith('INF') ? 'Mutual Funds' : 'Stocks / Equity',
+          quantity: qty,
+          avgBuyPrice: avgPrice,
+          buyValue: buyVal,
+          closingPrice: closePrice,
+          closingValue: closeVal,
+          unrealisedPnl: pnl,
+        });
+      }
+    });
+
+    if (detectedClientCode) setGrowwClientCode(detectedClientCode);
+    if (holdings.length > 0) setParsedHoldings(holdings);
   };
 
   const parseGrowwStatement = (content: string) => {
@@ -364,15 +435,15 @@ export default function InvestmentsPage() {
             </div>
 
             <p className="text-xs text-gray-400">
-              Upload your Groww holding / P&L statement (CSV or text). FinanceOS will automatically extract Unique Client Code, Stock Name, ISIN, Quantity, Average Buy Price, Buy Value, Closing Price, Closing Value & Unrealised P&L!
+              Upload your Groww holding / P&L statement (Excel .xlsx, .xls, CSV, or text). FinanceOS will automatically extract Unique Client Code, Stock Name, ISIN, Quantity, Average Buy Price, Buy Value, Closing Price, Closing Value & Unrealised P&L!
             </p>
 
             <div className="border-2 border-dashed border-emerald-500/40 hover:border-emerald-400 rounded-xl p-6 text-center cursor-pointer bg-emerald-950/20">
-              <input type="file" accept=".csv,.txt,.json" onChange={handleFileUpload} className="hidden" id="groww-file" />
+              <input type="file" accept=".xlsx,.xls,.csv,.txt,.json" onChange={handleFileUpload} className="hidden" id="groww-file" />
               <label htmlFor="groww-file" className="cursor-pointer space-y-2 block">
-                <span className="text-3xl block">📄</span>
-                <span className="text-sm font-semibold text-emerald-300 block">Click to select Groww statement file</span>
-                <span className="text-xs text-gray-400 block">Supports CSV, CAS text files</span>
+                <span className="text-3xl block">📊</span>
+                <span className="text-sm font-semibold text-emerald-300 block">Click to select Excel (.xlsx / .xls) or CSV statement file</span>
+                <span className="text-xs text-gray-400 block">Supports Excel (.xlsx), CSV, CAS text files</span>
               </label>
             </div>
 
