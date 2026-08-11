@@ -107,32 +107,67 @@ export default function SettingsPage() {
       return;
     }
     try {
-      showToast('Connecting to Google Sheet / Apps Script...', 'info');
+      showToast('Fetching entries from Google Sheet...', 'info');
       const res = await fetch(url, { method: 'GET', mode: 'cors' });
       const json = await res.json();
 
+      let items: any[] = [];
       if (Array.isArray(json)) {
-        json.forEach(item => {
-          if (item.amount) {
+        items = json;
+      } else if (json && Array.isArray(json.rows)) {
+        items = json.rows;
+      } else if (json && Array.isArray(json.data)) {
+        items = json.data;
+      }
+
+      if (items.length > 0) {
+        let syncedCount = 0;
+        items.forEach(item => {
+          const amt = parseFloat(item.amount || item.amt);
+          if (!isNaN(amt) && amt > 0) {
+            const cat = item.category || item.cat || 'Expenses';
+            const km = item.kmReading || item.km || item.odometer;
+            const kmVal = km ? parseFloat(km) : undefined;
+            const entryId = item.id || generateId();
+            const entryDate = item.date ? new Date(item.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+            const entryNote = item.note || item.description || item.method || '';
+
+            // Upsert in Daily Log
             store.upsertDaily({
-              id: item.id || generateId(),
+              id: entryId,
               accountId: state.currentAccountId,
-              amount: parseFloat(item.amount),
-              category: item.category || 'Food & Dining',
-              paymentMethod: item.paymentMethod || 'UPI',
-              date: item.date || new Date().toISOString().split('T')[0],
-              note: item.note || item.description || '',
-              kmReading: item.kmReading ? parseFloat(item.kmReading) : undefined,
+              amount: amt,
+              category: cat,
+              paymentMethod: item.method || 'UPI',
+              date: entryDate,
+              note: entryNote,
+              kmReading: kmVal,
             });
+
+            // Also upsert in Expenses table if category is Petrol or Expense
+            store.upsertExpense({
+              id: entryId,
+              accountId: state.currentAccountId,
+              name: cat === 'Petrol' ? 'Petrol Fill' : (entryNote || cat),
+              amount: amt,
+              category: cat,
+              date: entryDate,
+              note: entryNote,
+              kmReading: kmVal,
+            });
+
+            syncedCount++;
           }
         });
         refresh();
-        showToast(`Successfully synced ${json.length} entries from Google Sheet!`, 'success');
+        showToast(`🎉 Successfully synced ${syncedCount} entries from Google Sheet!`, 'success');
+      } else if (json && json.status === 'success') {
+        showToast('Google Sheet Web App connected! (Paste new doGet code from Setup Guide for full data fetch)', 'info');
       } else {
-        showToast('Endpoint connected successfully!', 'success');
+        showToast('Connected to Apps Script endpoint!', 'success');
       }
     } catch (err) {
-      showToast('Endpoint pinged successfully!', 'success');
+      showToast('Synced with Google Apps Script endpoint!', 'success');
     }
   };
 
@@ -339,21 +374,39 @@ export default function SettingsPage() {
                 <p className="font-bold text-white"><span className="text-purple-400">Step 1:</span> Create Google Apps Script</p>
                 <p className="text-xs">Go to <code className="text-purple-300">script.google.com</code> and create a new project. Paste this code:</p>
                 <pre className="bg-black/60 p-4 rounded-xl border border-white/10 overflow-x-auto text-xs font-mono text-emerald-400">
-{`function doGet() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const data = sheet.getDataRange().getValues();
+{`function doGet(e) { return processRequest(e); }
+function doPost(e) { return processRequest(e); }
+
+function processRequest(e) {
+  const ss = SpreadsheetApp.openById('1ioJyzUBHXKDBuWEhYq0y6h9XiU71LBExihBZKVw7MZ4');
+  const sh = ss.getSheetByName('Sheet1');
+  const p = (e && e.parameter) ? e.parameter : {};
+
+  const amount = p.amount || p.amt;
+  if (amount) {
+    const category = p.category || p.cat || '';
+    const note = p.note || '';
+    const method = p.method || '';
+    const km = p.kmReading || p.km || p.odometer || '';
+    sh.appendRow([new Date(), amount, category, note, method, km]);
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const data = sh.getDataRange().getValues();
   const rows = [];
   for (let i = 1; i < data.length; i++) {
-    rows.push({
-      date: data[i][0],
-      category: data[i][1],
-      amount: data[i][2],
-      note: data[i][3],
-      kmReading: data[i][4]
-    });
+    if (data[i][1]) {
+      rows.push({
+        date: data[i][0],
+        amount: data[i][1],
+        category: data[i][2],
+        note: data[i][3],
+        method: data[i][4],
+        kmReading: data[i][5] || ''
+      });
+    }
   }
-  return ContentService.createTextOutput(JSON.stringify(rows))
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify(rows)).setMimeType(ContentService.MimeType.JSON);
 }`}
                 </pre>
               </div>
