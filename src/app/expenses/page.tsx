@@ -81,6 +81,22 @@ export default function ExpensesPage() {
   const totalExpenses = allCombinedExpenses.reduce((sum, e) => sum + e.amount, 0);
   const totalCount = allCombinedExpenses.length;
 
+  // Blinkit Specific Stats
+  const currentMonthStr = new Date().toISOString().substring(0, 7);
+  const thisMonthLabel = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  const blinkitLogs = allCombinedExpenses.filter(e => {
+    const isCat = e.category === 'Blinkit';
+    const isNote = (e.name || e.note || '').toLowerCase().includes('blinkit');
+    const isThisMonth = (e.date || '').substring(0, 7) === currentMonthStr;
+    return (isCat || isNote) && isThisMonth;
+  });
+
+  const blinkitOrdersCount = blinkitLogs.length;
+  const blinkitTotalSpend = blinkitLogs.reduce((sum, e) => sum + e.amount, 0);
+  const blinkitBudget = budgets['Blinkit'] || 3000; // Default ₹3,000 budget
+  const blinkitOverBudget = blinkitTotalSpend > blinkitBudget;
+  const blinkitDiff = Math.abs(blinkitTotalSpend - blinkitBudget);
+
   const expenseByCategory = allCombinedExpenses.reduce((acc, curr) => {
     acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
     return acc;
@@ -231,6 +247,66 @@ export default function ExpensesPage() {
             ⛽ No petrol fills recorded yet. Log an expense under category <strong>Petrol</strong> to see stats here!
           </div>
         )}
+      </div>
+
+      {/* DEDICATED BLINKIT TRACKER GRID BOX */}
+      <div className="bg-gradient-to-r from-amber-950/30 via-[#0e0e1c] to-purple-950/30 border border-amber-500/30 rounded-2xl p-6 relative overflow-hidden shadow-xl space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🛍️</span>
+            <div>
+              <h2 className="text-lg font-bold text-amber-300">Blinkit & Quick Commerce Tracker</h2>
+              <p className="text-xs text-amber-200/60">Monthly order count, total spending & budget alerts</p>
+            </div>
+          </div>
+          <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
+            blinkitOverBudget
+              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 font-bold'
+              : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+          }`}>
+            {blinkitOverBudget ? `⚠️ OVER BUDGET BY ${formatCurrency(blinkitDiff, currency)}` : `Within Monthly Budget (${formatCurrency(blinkitBudget, currency)})`}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-black/40 border border-white/10 rounded-xl p-4">
+            <span className="text-xs text-gray-400 font-medium block">ORDERS THIS MONTH</span>
+            <span className="text-2xl font-bold text-amber-400 mt-1 block">
+              {blinkitOrdersCount} {blinkitOrdersCount === 1 ? 'Order' : 'Orders'}
+            </span>
+            <span className="text-[11px] text-gray-500 mt-1 block">Instant deliveries in {thisMonthLabel}</span>
+          </div>
+
+          <div className="bg-black/40 border border-white/10 rounded-xl p-4">
+            <span className="text-xs text-gray-400 font-medium block">TOTAL BLINKIT SPEND</span>
+            <span className="text-2xl font-bold text-rose-400 mt-1 block">
+              {formatCurrency(blinkitTotalSpend, currency)}
+            </span>
+            <span className="text-[11px] text-gray-500 mt-1 block">Spent this month</span>
+          </div>
+
+          <div className="bg-black/40 border border-white/10 rounded-xl p-4">
+            <span className="text-xs text-gray-400 font-medium block">MONTHLY BUDGET</span>
+            <span className="text-2xl font-bold text-white mt-1 block">
+              {formatCurrency(blinkitBudget, currency)}
+            </span>
+            <span className="text-[11px] text-gray-500 mt-1 block">Configurable in Set Budgets</span>
+          </div>
+
+          <div className={`border rounded-xl p-4 ${
+            blinkitOverBudget ? 'bg-rose-950/40 border-rose-500/40' : 'bg-black/40 border-white/10'
+          }`}>
+            <span className="text-xs text-gray-400 font-medium block">BUDGET STATUS</span>
+            <span className={`text-xl font-bold mt-1 block ${
+              blinkitOverBudget ? 'text-rose-400 font-extrabold' : 'text-emerald-400'
+            }`}>
+              {blinkitOverBudget ? `Over by ${formatCurrency(blinkitDiff, currency)}` : `${formatCurrency(blinkitDiff, currency)} Left`}
+            </span>
+            <span className="text-[11px] text-gray-500 mt-1 block">
+              {blinkitOverBudget ? '⚠️ Spending limit exceeded!' : 'Good standing'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Clean 3 Metric Cards (Removed redundant duplicate Petrol Spend card) */}

@@ -163,7 +163,7 @@ export interface AppState {
 
 // Constants
 export const EXPENSE_CATEGORIES = [
-  'Petrol', 'Food & Dining', 'Medical', 'Clothing & Shopping', 'Health Supplements',
+  'Petrol', 'Blinkit', 'Food & Dining', 'Medical', 'Clothing & Shopping', 'Health Supplements',
   'Transport', 'Housing / Rent', 'Entertainment', 'Education',
   'Utilities', 'Personal Care', 'Other'
 ] as string[];
@@ -193,7 +193,7 @@ export const RENT_EXPENSE_CATEGORIES = [
 ] as string[];
 
 export const CATEGORY_ICONS: Record<string, string> = {
-  'Petrol': '⛽', 'Food & Dining': '🍔', 'Medical': '🏥', 'Clothing & Shopping': '👗',
+  'Petrol': '⛽', 'Blinkit': '🛍️', 'Food & Dining': '🍔', 'Medical': '🏥', 'Clothing & Shopping': '👗',
   'Health Supplements': '💊', 'Transport': '🚗', 'Housing / Rent': '🏠',
   'Entertainment': '🎬', 'Education': '📚', 'Utilities': '💡',
   'Personal Care': '💆', 'Other': '📦', 'Salary': '💼',

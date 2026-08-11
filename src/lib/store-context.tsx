@@ -36,45 +36,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         else if (json && Array.isArray(json.rows)) items = json.rows;
         else if (json && Array.isArray(json.data)) items = json.data;
 
-        if (items.length > 0) {
-          let updated = false;
-          items.forEach(item => {
-            const amt = parseFloat(item.amount || item.amt);
-            if (!isNaN(amt) && amt > 0) {
-              const cat = item.category || item.cat || 'Expenses';
-              const km = item.kmReading || item.km || item.odometer;
-              const kmVal = km ? parseFloat(km) : undefined;
-              const entryDate = item.date ? new Date(item.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-              const entryNote = item.note || item.description || item.method || '';
-              const entryId = item.id || `sheet_${entryDate}_${amt}_${cat}_${entryNote}`;
-
-              store.upsertDaily({
-                id: entryId,
-                accountId: store.getState().currentAccountId,
-                amount: amt,
-                category: cat,
-                paymentMethod: item.method || 'UPI',
-                date: entryDate,
-                note: entryNote,
-                kmReading: kmVal,
-              });
-
-              store.upsertExpense({
-                id: entryId,
-                accountId: store.getState().currentAccountId,
-                name: cat === 'Petrol' ? 'Petrol Fill' : (entryNote || cat),
-                amount: amt,
-                category: cat,
-                date: entryDate,
-                note: entryNote,
-                kmReading: kmVal,
-              });
-
-              updated = true;
-            }
-          });
-          if (updated) refresh();
-        }
+        store.syncSheetItems(items);
+        refresh();
       } catch (err) {
         // Silent catch for background auto sync
       }

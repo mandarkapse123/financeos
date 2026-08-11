@@ -257,6 +257,60 @@ class Store {
   upsertIncome(item: AppState['income'][0]) { this.state.income = this.upsert(this.state.income, item); this.save(); }
   deleteIncome(id: string) { this.state.income = this.remove(this.state.income, id); this.save(); }
 
+  // Cleanly Sync Google Sheet items (mirroring Google Sheet state, clearing removed rows, no duplicates)
+  syncSheetItems(items: Array<{ id?: string; date: string; amount: number; category: string; note?: string; method?: string; kmReading?: number }>) {
+    const accountId = this.state.currentAccountId;
+
+    const sheetDaily: AppState['daily'] = [];
+    const sheetExpenses: AppState['expenses'] = [];
+
+    (items || []).forEach((item, index) => {
+      const amt = parseFloat(item.amount as any);
+      if (isNaN(amt) || amt <= 0) return;
+
+      const dateStr = item.date ? new Date(item.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+      const cat = item.category || 'Expenses';
+      const note = item.note || '';
+      const kmVal = item.kmReading ? parseFloat(item.kmReading as any) : undefined;
+      const sheetId = `sheet_row_${index}_${dateStr}_${amt}_${cat}`;
+
+      sheetDaily.push({
+        id: sheetId,
+        accountId,
+        amount: amt,
+        category: cat,
+        paymentMethod: item.method || 'UPI',
+        date: dateStr,
+        note: note,
+        kmReading: kmVal,
+      });
+
+      sheetExpenses.push({
+        id: sheetId,
+        accountId,
+        name: cat === 'Petrol' ? 'Petrol Fill' : (note || cat),
+        amount: amt,
+        category: cat,
+        date: dateStr,
+        note: note,
+        kmReading: kmVal,
+      });
+    });
+
+    // Replace sheet entries for this account with the exact new list from Google Sheet
+    this.state.daily = [
+      ...this.state.daily.filter(d => d.accountId !== accountId || !d.id.startsWith('sheet_')),
+      ...sheetDaily
+    ];
+
+    this.state.expenses = [
+      ...this.state.expenses.filter(e => e.accountId !== accountId || !e.id.startsWith('sheet_')),
+      ...sheetExpenses
+    ];
+
+    this.save();
+  }
+
   // Expenses
   getExpenses() { return this.getForAccount(this.state.expenses); }
   upsertExpense(item: AppState['expenses'][0]) { this.state.expenses = this.upsert(this.state.expenses, item); this.save(); }
