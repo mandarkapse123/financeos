@@ -1,34 +1,39 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store-context';
-import { formatCurrency, sumAmounts, monthlyAmount, CATEGORY_COLORS, SUBSCRIPTION_CATEGORIES } from '@/lib/utils';
+import { formatCurrency, sumAmounts, monthlyAmount, CATEGORY_COLORS, SUBSCRIPTION_CATEGORIES, formatDate } from '@/lib/utils';
 import { Subscription } from '@/lib/types';
 import { generateId } from '@/lib/store';
 
 export default function SubscriptionsPage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const { state, store, refresh } = useStore();
   const subs = store.getSubscriptions();
   const currency = state.settings.currency;
-  
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Subscription | null>(null);
-  
+
+  if (!mounted) return null;
+
   const totalMonthly = sumAmounts(subs.map(s => ({ amount: monthlyAmount(s) })));
   const totalYearly = totalMonthly * 12;
   const activeSubs = subs.length;
 
-  const today = new Date().toISOString().split('T')[0];
+  const todayStr = new Date().toISOString().split('T')[0];
   const upcomingRenewals = subs.filter(s => {
     if (!s.renewalDate) return false;
-    const diff = (new Date(s.renewalDate).getTime() - new Date(today).getTime()) / 86400000;
+    const diff = (new Date(s.renewalDate).getTime() - new Date(todayStr).getTime()) / 86400000;
     return diff >= 0 && diff <= 7;
   }).sort((a, b) => new Date(a.renewalDate).getTime() - new Date(b.renewalDate).getTime());
 
   const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const item = {
+    const item: Subscription = {
       id: editing?.id || generateId(),
       accountId: state.currentAccountId,
       name: formData.get('name') as string,
@@ -46,135 +51,219 @@ export default function SubscriptionsPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 text-white min-h-screen">
-      <div className="flex justify-between items-center bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-6">
+      {/* Top Banner */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-6 shadow-xl">
         <div>
-          <h1 className="text-2xl font-bold">Subscriptions</h1>
-          <p className="text-gray-400">Manage your recurring payments and services</p>
+          <h1 className="text-2xl font-bold">Subscriptions & Recurring Services</h1>
+          <p className="text-gray-400 text-sm">Manage recurring payments, renewal reminders, and monthly projections</p>
         </div>
-        <button onClick={() => { setEditing(null); setModalOpen(true); }} className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-500 rounded-lg font-medium">
+        <button
+          onClick={() => { setEditing(null); setModalOpen(true); }}
+          className="bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:-translate-y-0.5"
+        >
           + Add Subscription
         </button>
       </div>
 
+      {/* 3 Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: 'Monthly Cost', val: formatCurrency(totalMonthly, currency) },
-          { label: 'Annual Projection', val: formatCurrency(totalYearly, currency) },
-          { label: 'Active Subscriptions', val: activeSubs },
-        ].map(m => (
-          <div key={m.label} className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-            <h3 className="text-sm text-gray-400">{m.label}</h3>
-            <p className="text-2xl font-semibold mt-1 text-purple-400">{m.val}</p>
+          { label: 'Monthly Cost', val: formatCurrency(totalMonthly, currency), color: 'text-purple-400' },
+          { label: 'Annual Projection', val: formatCurrency(totalYearly, currency), color: 'text-purple-400' },
+          { label: 'Active Subscriptions', val: `${activeSubs}`, color: 'text-emerald-400' },
+        ].map((m) => (
+          <div key={m.label} className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 shadow-md">
+            <h3 className="text-xs text-gray-400 font-semibold uppercase">{m.label}</h3>
+            <p className={`text-2xl font-bold mt-1 ${m.color}`}>{m.val}</p>
           </div>
         ))}
       </div>
 
+      {/* Upcoming Renewals Warning Card */}
       {upcomingRenewals.length > 0 && (
-        <div className="bg-gradient-to-r from-rose-500/10 to-orange-500/10 border border-rose-500/20 rounded-2xl p-5">
-          <h3 className="text-lg font-semibold text-rose-400 mb-3 flex items-center gap-2">
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 space-y-3">
+          <h3 className="font-bold text-amber-400 text-sm flex items-center gap-2">
             <span>⚠️</span> Upcoming Renewals (Next 7 Days)
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {upcomingRenewals.map(s => (
-              <div key={s.id} className="flex justify-between items-center bg-black/20 p-3 rounded-lg border border-white/5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {upcomingRenewals.map((sub) => (
+              <div key={sub.id} className="bg-black/30 border border-white/10 p-3.5 rounded-xl flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="text-2xl">{s.icon}</div>
+                  <span className="text-2xl">{sub.icon || '✨'}</span>
                   <div>
-                    <p className="font-medium">{s.name}</p>
-                    <p className="text-xs text-rose-300">Renews on {s.renewalDate}</p>
+                    <h4 className="font-bold text-white text-sm">{sub.name}</h4>
+                    <p className="text-xs text-amber-300 font-medium">Renews: {formatDate(sub.renewalDate)}</p>
                   </div>
                 </div>
-                <div className="font-semibold text-rose-400">{formatCurrency(s.amount, currency)}</div>
+                <span className="font-bold text-purple-300 text-sm">{formatCurrency(sub.amount, currency)}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {subs.length === 0 ? (
-          <div className="col-span-full text-center py-12 bg-[#0e0e1c] border border-white/[0.07] rounded-2xl">
-            <div className="text-4xl mb-3">🔄</div>
-            <p className="text-gray-400">No subscriptions tracked yet.</p>
-            <button onClick={() => { setEditing(null); setModalOpen(true); }} className="mt-4 px-4 py-2 bg-[#1c1c30] border border-white/10 rounded-lg hover:bg-white/5 transition">
-              Add First Subscription
-            </button>
-          </div>
-        ) : (
-          subs.map(s => (
-            <div key={s.id} className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 hover:border-purple-500/30 transition-colors group relative">
-              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => { setEditing(s); setModalOpen(true); }} className="text-purple-400 bg-purple-400/10 p-1.5 rounded-md hover:bg-purple-400/20">Edit</button>
+      {/* Subscriptions Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        {subs.map((sub) => (
+          <div key={sub.id} className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 space-y-4 hover:border-purple-500/30 transition-all shadow-lg">
+            <div className="flex justify-between items-start">
+              <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-2xl">
+                {sub.icon || '✨'}
               </div>
-              <div className="text-4xl mb-4 bg-white/5 w-16 h-16 rounded-xl flex items-center justify-center border border-white/10 shadow-inner">
-                {s.icon}
-              </div>
-              <h3 className="font-semibold text-lg">{s.name}</h3>
-              <p className="text-xs text-gray-400 mb-4 capitalize">{s.category} • {s.cycle}</p>
-              
-              <div className="flex justify-between items-end">
-                <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Next billing</p>
-                  <p className="text-sm font-medium">{s.renewalDate || 'Unknown'}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-xl text-emerald-400">{formatCurrency(s.amount, currency)}</p>
-                </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => { setEditing(sub); setModalOpen(true); }}
+                  className="p-1.5 text-gray-400 hover:text-white transition-colors"
+                >
+                  ✏️
+                </button>
+                <button
+                  onClick={() => { store.deleteSubscription(sub.id); refresh(); }}
+                  className="p-1.5 text-gray-400 hover:text-rose-400 transition-colors"
+                >
+                  🗑️
+                </button>
               </div>
             </div>
-          ))
-        )}
+
+            <div>
+              <h3 className="font-bold text-lg text-white">{sub.name}</h3>
+              <p className="text-xs text-gray-400 capitalize">{sub.category} • {sub.cycle}</p>
+            </div>
+
+            <div className="pt-2 border-t border-white/10 flex justify-between items-end">
+              <div>
+                <span className="text-[10px] text-gray-400 font-semibold uppercase block">NEXT BILLING</span>
+                <span className="text-xs text-purple-300 font-medium">{sub.renewalDate ? formatDate(sub.renewalDate) : 'Not set'}</span>
+              </div>
+              <span className="text-xl font-bold text-purple-400">{formatCurrency(sub.amount, currency)}</span>
+            </div>
+          </div>
+        ))}
       </div>
 
+      {subs.length === 0 && (
+        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-12 text-center space-y-4">
+          <span className="text-5xl block">🔄</span>
+          <h2 className="text-xl font-bold">No Subscriptions Added</h2>
+          <p className="text-sm text-gray-400 max-w-md mx-auto">
+            Track Netflix, Spotify, iCloud, Gym memberships and get automatic renewal reminders 2 days prior!
+          </p>
+          <button
+            onClick={() => { setEditing(null); setModalOpen(true); }}
+            className="bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold px-6 py-3 rounded-xl transition-all shadow-lg"
+          >
+            + Add First Subscription
+          </button>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT SUBSCRIPTION */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">{editing ? 'Edit' : 'Add'} Subscription</h2>
-            <form onSubmit={handleSave} className="space-y-4">
-              <div className="flex gap-4">
-                <div className="w-16">
-                  <label className="block text-sm text-gray-400 mb-1">Icon</label>
-                  <input name="icon" defaultValue={editing?.icon || '✨'} className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-center text-xl" />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-sm text-gray-400 mb-1">Name</label>
-                  <input required name="name" defaultValue={editing?.name || ''} className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-white" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Amount</label>
-                  <input required type="number" step="0.01" name="amount" defaultValue={editing?.amount || ''} className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-white" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Billing Cycle</label>
-                  <select name="cycle" defaultValue={editing?.cycle || 'monthly'} className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-white">
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                    <option value="quarterly">Quarterly</option>
-                    <option value="weekly">Weekly</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Next Renewal</label>
-                  <input required type="date" name="renewalDate" defaultValue={editing?.renewalDate || new Date().toISOString().split('T')[0]} className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-white [color-scheme:dark]" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Category</label>
-                  <select name="category" defaultValue={editing?.category || SUBSCRIPTION_CATEGORIES[0]} className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-white">
-                    {SUBSCRIPTION_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-lg font-bold">{editing ? 'Edit Subscription' : 'Add Subscription'}</h3>
+            <form onSubmit={handleSave} className="space-y-3 text-sm">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Note (Optional)</label>
-                <input name="note" defaultValue={editing?.note || ''} className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-white" />
+                <label className="text-xs text-gray-400 block mb-1">Service Name</label>
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  defaultValue={editing?.name || ''}
+                  placeholder="e.g. Netflix, Spotify, iCloud"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
+                />
               </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 bg-[#1c1c30] rounded-lg">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-500 rounded-lg font-medium">Save</button>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Amount ({currency})</label>
+                  <input
+                    type="number"
+                    step="any"
+                    name="amount"
+                    required
+                    defaultValue={editing?.amount || ''}
+                    placeholder="649"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Billing Cycle</label>
+                  <select
+                    name="cycle"
+                    defaultValue={editing?.cycle || 'monthly'}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
+                  >
+                    <option value="monthly" className="bg-[#141426]">Monthly</option>
+                    <option value="yearly" className="bg-[#141426]">Yearly</option>
+                    <option value="quarterly" className="bg-[#141426]">Quarterly</option>
+                    <option value="weekly" className="bg-[#141426]">Weekly</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Category</label>
+                  <select
+                    name="category"
+                    defaultValue={editing?.category || 'Streaming'}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
+                  >
+                    {SUBSCRIPTION_CATEGORIES.map(c => (
+                      <option key={c} value={c} className="bg-[#141426]">{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Icon Emoji</label>
+                  <input
+                    type="text"
+                    name="icon"
+                    defaultValue={editing?.icon || '🎬'}
+                    placeholder="🎬"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white text-center"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Next Renewal Date</label>
+                <input
+                  type="date"
+                  name="renewalDate"
+                  defaultValue={editing?.renewalDate || new Date().toISOString().split('T')[0]}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Note (Optional)</label>
+                <input
+                  type="text"
+                  name="note"
+                  defaultValue={editing?.note || ''}
+                  placeholder="e.g. 4K UHD family plan"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl font-semibold bg-purple-600 hover:bg-purple-500 text-white shadow-lg"
+                >
+                  Save Subscription
+                </button>
               </div>
             </form>
           </div>

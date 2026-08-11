@@ -154,7 +154,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen?: bo
             className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.03] transition-colors group"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-bold flex-shrink-0 shadow-[0_0_15px_rgba(124,58,237,0.3)]">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-800 flex items-center justify-center text-white font-bold flex-shrink-0 shadow-[0_0_15px_rgba(124,58,237,0.3)]">
                 {userInitials}
               </div>
               <div className="flex flex-col min-w-0 text-left">

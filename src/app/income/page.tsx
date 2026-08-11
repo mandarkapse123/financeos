@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store-context';
 import { formatCurrency, sumAmounts, monthlyAmount, CATEGORY_COLORS, INCOME_CATEGORIES } from '@/lib/utils';
 import { IncomeEntry } from '@/lib/types';
@@ -13,12 +13,17 @@ import { Doughnut, Line } from 'react-chartjs-2';
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Legend, Tooltip);
 
 export default function IncomePage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const { state, store, refresh } = useStore();
   const income = store.getIncome();
   const currency = state.settings.currency;
-  
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<IncomeEntry | null>(null);
+
+  if (!mounted) return null;
   
   const totalMonthly = sumAmounts(income.map(i => ({ amount: monthlyAmount(i) })));
   const highestSource = income.length > 0 ? income.reduce((a, b) => monthlyAmount(a) > monthlyAmount(b) ? a : b).name : 'None';

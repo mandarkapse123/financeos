@@ -214,7 +214,7 @@ export default function RentPortal() {
             )}
           >
             {tab}
-            {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />}
+            {activeTab === tab && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500" />}
           </button>
         ))}
       </div>

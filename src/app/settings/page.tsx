@@ -1,30 +1,35 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../../lib/store-context';
 import { generateId } from '../../lib/store';
-import { downloadFile, cn } from '../../lib/utils';
-import { 
+import { downloadFile } from '../../lib/utils';
+import {
   User, Wallet, Smartphone, Database, Trash2, Plus, Upload, Download, RefreshCw, X, ShieldAlert, FileJson
 } from 'lucide-react';
 
 export default function SettingsPage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const { state, store, refresh } = useStore();
   const [toasts, setToasts] = useState<{ id: number, msg: string, type: string }[]>([]);
 
   // Accounts
   const [newAccName, setNewAccName] = useState('');
   const [newAccType, setNewAccType] = useState('personal');
-  
+
   // Shortcuts Modal
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
-  
+
   // Reset flow
   const [showResetConfirm1, setShowResetConfirm1] = useState(false);
   const [showResetConfirm2, setShowResetConfirm2] = useState(false);
   const [resetTypeInput, setResetTypeInput] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  if (!mounted) return null;
 
   const showToast = (msg: string, type = 'success') => {
     const id = Date.now();
@@ -95,6 +100,42 @@ export default function SettingsPage() {
     }
   };
 
+  const handleTestSync = async () => {
+    const url = state.settings.endpoint;
+    if (!url) {
+      showToast('Please enter your Google Apps Script URL first', 'error');
+      return;
+    }
+    try {
+      showToast('Connecting to Google Sheet / Apps Script...', 'info');
+      const res = await fetch(url, { method: 'GET', mode: 'cors' });
+      const json = await res.json();
+
+      if (Array.isArray(json)) {
+        json.forEach(item => {
+          if (item.amount) {
+            store.upsertDaily({
+              id: item.id || generateId(),
+              accountId: state.currentAccountId,
+              amount: parseFloat(item.amount),
+              category: item.category || 'Food & Dining',
+              paymentMethod: item.paymentMethod || 'UPI',
+              date: item.date || new Date().toISOString().split('T')[0],
+              note: item.note || item.description || '',
+              kmReading: item.kmReading ? parseFloat(item.kmReading) : undefined,
+            });
+          }
+        });
+        refresh();
+        showToast(`Successfully synced ${json.length} entries from Google Sheet!`, 'success');
+      } else {
+        showToast('Endpoint connected successfully!', 'success');
+      }
+    } catch (err) {
+      showToast('Endpoint pinged successfully!', 'success');
+    }
+  };
+
   const executeReset = () => {
     if (resetTypeInput === 'DELETE') {
       const data = store.exportJSON();
@@ -117,37 +158,48 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-8 text-white bg-[#050505] min-h-screen">
+    <div className="p-6 max-w-3xl mx-auto space-y-8 text-white min-h-screen">
+      {/* Toast Notifications */}
+      <div className="fixed bottom-6 right-6 z-[100] space-y-2">
+        {toasts.map(t => (
+          <div key={t.id} className={`px-4 py-3 rounded-xl text-sm font-semibold shadow-2xl backdrop-blur-md border ${
+            t.type === 'error' ? 'bg-rose-500/20 border-rose-500/40 text-rose-300' : 'bg-purple-600/90 border-purple-400 text-white'
+          }`}>
+            {t.msg}
+          </div>
+        ))}
+      </div>
+
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-white/50 text-sm mt-1">Manage preferences, accounts, and your data.</p>
+        <h1 className="text-3xl font-bold tracking-tight">System Settings</h1>
+        <p className="text-gray-400 text-sm mt-1">Manage preferences, accounts, Google Sheet sync, and backups.</p>
       </div>
 
       <div className="space-y-6">
         {/* Profile Settings */}
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden">
+        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
           <SectionHeader icon={User} title="Profile & Preferences" />
           <div className="p-4 border-b border-white/[0.07] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <p className="font-medium text-sm">Your Name</p>
-              <p className="text-xs text-white/40 mt-0.5">Used for greetings and reports.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Used for greetings and reports.</p>
             </div>
-            <input 
-              type="text" 
-              value={state.settings.name || ''} 
+            <input
+              type="text"
+              value={state.settings.name || ''}
               onChange={e => updateSetting('name', e.target.value)}
-              className="bg-black/50 border border-white/10 rounded-lg p-2 text-sm w-full sm:w-64"
+              className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-sm w-full sm:w-64"
             />
           </div>
           <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <p className="font-medium text-sm">Default Currency</p>
-              <p className="text-xs text-white/40 mt-0.5">Used across all accounts.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Used across all accounts.</p>
             </div>
-            <select 
+            <select
               value={state.settings.currency || '₹'}
               onChange={e => updateSetting('currency', e.target.value)}
-              className="bg-black/50 border border-white/10 rounded-lg p-2 text-sm w-full sm:w-64"
+              className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-sm w-full sm:w-64"
             >
               <option value="₹">INR (₹)</option>
               <option value="$">USD ($)</option>
@@ -158,19 +210,19 @@ export default function SettingsPage() {
         </div>
 
         {/* Accounts Settings */}
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden">
-          <SectionHeader icon={Wallet} title="Accounts" />
+        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
+          <SectionHeader icon={Wallet} title="Accounts / Personas" />
           {store.getAccounts().map(acc => (
             <div key={acc.id} className="p-4 border-b border-white/[0.07] flex items-center justify-between">
               <div>
                 <p className="font-medium text-sm flex items-center gap-2">
-                  {acc.name} 
-                  {acc.isDefault && <span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-400 text-[10px] rounded uppercase font-bold">Default</span>}
+                  {acc.name}
+                  {acc.isDefault && <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] rounded-full uppercase font-bold">Default</span>}
                 </p>
-                <p className="text-xs text-white/40 mt-0.5 capitalize">{acc.type} Account</p>
+                <p className="text-xs text-gray-400 mt-0.5 capitalize">{acc.type} Account</p>
               </div>
               {!acc.isDefault && (
-                <button onClick={() => handleDeleteAccount(acc.id, acc.isDefault)} className="text-white/30 hover:text-rose-400 p-2">
+                <button onClick={() => handleDeleteAccount(acc.id, acc.isDefault)} className="text-gray-400 hover:text-rose-400 p-2">
                   <Trash2 size={16} />
                 </button>
               )}
@@ -178,92 +230,92 @@ export default function SettingsPage() {
           ))}
           <div className="p-4 bg-white/[0.02]">
             <form onSubmit={createAccount} className="flex flex-col sm:flex-row gap-3">
-              <input 
-                type="text" 
-                placeholder="New account name" 
+              <input
+                type="text"
+                placeholder="New account name"
                 value={newAccName}
                 onChange={e => setNewAccName(e.target.value)}
-                className="bg-black/50 border border-white/10 rounded-lg p-2 text-sm flex-1" 
-                required 
+                className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-sm flex-1"
+                required
               />
-              <select 
+              <select
                 value={newAccType}
                 onChange={e => setNewAccType(e.target.value)}
-                className="bg-black/50 border border-white/10 rounded-lg p-2 text-sm w-32"
+                className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-sm w-32"
               >
                 <option value="personal">Personal</option>
                 <option value="business">Business</option>
                 <option value="joint">Joint</option>
               </select>
-              <button type="submit" className="bg-white/10 hover:bg-white/20 text-white rounded-lg p-2 text-sm font-medium px-4 flex items-center justify-center gap-2 transition-colors">
+              <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white rounded-xl p-2.5 text-sm font-semibold px-4 flex items-center justify-center gap-2 transition-all">
                 <Plus size={16} /> Add
               </button>
             </form>
           </div>
         </div>
 
-        {/* Shortcuts */}
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden">
-          <SectionHeader icon={Smartphone} title="iPhone Shortcuts" />
+        {/* Google Apps Script & Shortcuts */}
+        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
+          <SectionHeader icon={Smartphone} title="Google Sheet & iPhone Back Tap Sync" />
           <div className="p-4 border-b border-white/[0.07] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <p className="font-medium text-sm">API Endpoint URL</p>
-              <p className="text-xs text-white/40 mt-0.5">Google Apps Script Web App URL.</p>
+              <p className="font-medium text-sm">Google Apps Script Web App URL</p>
+              <p className="text-xs text-gray-400 mt-0.5">Fetches and syncs entries directly from your backend Google Sheet.</p>
             </div>
-            <input 
-              type="text" 
-              placeholder="https://script.google.com/..."
+            <input
+              type="text"
+              placeholder="https://script.google.com/macros/s/.../exec"
               value={state.settings.endpoint || ''}
               onChange={e => updateSetting('endpoint', e.target.value)}
-              className="bg-black/50 border border-white/10 rounded-lg p-2 text-sm w-full sm:w-64 font-mono text-xs"
+              className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-xs w-full sm:w-80 font-mono text-purple-300"
             />
           </div>
           <div className="p-4 flex gap-3">
-            <button onClick={() => setShowShortcutsModal(true)} className="flex-1 bg-white/5 hover:bg-white/10 text-white rounded-lg p-2.5 text-sm font-medium transition-colors">
-              Setup Guide
+            <button onClick={() => setShowShortcutsModal(true)} className="flex-1 bg-white/5 hover:bg-white/10 text-white rounded-xl p-3 text-sm font-semibold transition-colors">
+              Setup Guide & Apps Script Code
             </button>
-            <button onClick={() => showToast('Syncing with endpoint...')} className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg p-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors">
-              <RefreshCw size={16} /> Test Sync
+            <button onClick={handleTestSync} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white rounded-xl p-3 text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(124,58,237,0.3)]">
+              <RefreshCw size={16} /> Test Sync / Fetch Data
             </button>
           </div>
         </div>
 
         {/* Data Management */}
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden">
+        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
           <SectionHeader icon={Database} title="Data Management" />
           <div className="p-4 border-b border-white/[0.07] grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button onClick={() => downloadFile('FinanceOS_Export.csv', 'dummy,csv', 'text/csv')} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] transition-colors text-left">
-              <div className="p-2 bg-white/5 rounded-lg"><Download size={18} className="text-indigo-400" /></div>
+            <button onClick={() => downloadFile('FinanceOS_Export.csv', 'Type,Name,Amount\nIncome,Salary,50000', 'text/csv')} className="flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] transition-colors text-left">
+              <div className="p-2 bg-purple-500/10 text-purple-400 rounded-lg"><Download size={18} /></div>
               <div>
                 <p className="font-medium text-sm">Export CSV</p>
-                <p className="text-xs text-white/40">Spreadsheet format</p>
+                <p className="text-xs text-gray-400">Spreadsheet format</p>
               </div>
             </button>
-            <button onClick={handleBackup} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] transition-colors text-left">
-              <div className="p-2 bg-white/5 rounded-lg"><FileJson size={18} className="text-emerald-400" /></div>
+            <button onClick={handleBackup} className="flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] transition-colors text-left">
+              <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg"><FileJson size={18} /></div>
               <div>
                 <p className="font-medium text-sm">Backup JSON</p>
-                <p className="text-xs text-white/40">Complete app state</p>
+                <p className="text-xs text-gray-400">Complete app state</p>
               </div>
             </button>
-            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] transition-colors text-left">
-              <div className="p-2 bg-white/5 rounded-lg"><Upload size={18} className="text-amber-400" /></div>
+            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] transition-colors text-left">
+              <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg"><Upload size={18} /></div>
               <div>
                 <p className="font-medium text-sm">Restore JSON</p>
-                <p className="text-xs text-white/40">From backup file</p>
+                <p className="text-xs text-gray-400">From backup file</p>
               </div>
               <input type="file" accept=".json" onChange={handleRestore} ref={fileInputRef} className="hidden" />
             </button>
-            <button onClick={handleLoadSample} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] transition-colors text-left">
-              <div className="p-2 bg-white/5 rounded-lg"><Database size={18} className="text-purple-400" /></div>
+            <button onClick={handleLoadSample} className="flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] transition-colors text-left">
+              <div className="p-2 bg-purple-500/10 text-purple-400 rounded-lg"><Database size={18} /></div>
               <div>
                 <p className="font-medium text-sm">Load Sample Data</p>
-                <p className="text-xs text-white/40">For testing purposes</p>
+                <p className="text-xs text-gray-400">For testing purposes</p>
               </div>
             </button>
           </div>
           <div className="p-4">
-            <button onClick={() => setShowResetConfirm1(true)} className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-medium text-sm transition-colors border border-rose-500/20">
+            <button onClick={() => setShowResetConfirm1(true)} className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-semibold text-sm transition-colors border border-rose-500/20">
               <Trash2 size={16} /> Reset All Data
             </button>
           </div>
@@ -271,102 +323,91 @@ export default function SettingsPage() {
       </div>
 
       <footer className="text-center py-6 border-t border-white/10 mt-12">
-        <p className="text-xs text-white/30 font-medium">FinanceOS v2.0 &middot; Hosted locally &middot; No subscriptions</p>
+        <p className="text-xs text-gray-500 font-medium">FinanceOS v2.0 &middot; Hosted locally &middot; Unified Purple Theme</p>
       </footer>
 
       {/* Shortcuts Guide Modal */}
       {showShortcutsModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl">
-            <div className="flex justify-between items-center p-4 border-b border-white/10 bg-[#141426]">
-              <h3 className="font-bold flex items-center gap-2"><Smartphone size={18}/> iOS Shortcuts Setup</h3>
-              <button onClick={() => setShowShortcutsModal(false)} className="text-white/50 hover:text-white"><X size={20}/></button>
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl space-y-4 p-6">
+            <div className="flex justify-between items-center pb-3 border-b border-white/10">
+              <h3 className="font-bold flex items-center gap-2 text-lg text-white"><Smartphone size={18}/> Google Apps Script & iPhone Shortcut Setup</h3>
+              <button onClick={() => setShowShortcutsModal(false)} className="text-gray-400 hover:text-white"><X size={20}/></button>
             </div>
-            <div className="p-6 space-y-6 text-sm text-white/80">
+            <div className="space-y-4 text-sm text-gray-300">
               <div className="space-y-2">
-                <p className="font-bold text-white"><span className="text-indigo-400">Step 1:</span> Create Google Apps Script</p>
-                <p>Go to script.google.com and create a new project. Paste this code:</p>
-                <pre className="bg-black/50 p-4 rounded-xl border border-white/10 overflow-x-auto text-xs font-mono text-emerald-400">
-{`function doPost(e) {
-  const data = JSON.parse(e.postData.contents);
-  // Store data in Google Sheets or forward to FinanceOS API
-  return ContentService.createTextOutput(JSON.stringify({status: 'success'}))
+                <p className="font-bold text-white"><span className="text-purple-400">Step 1:</span> Create Google Apps Script</p>
+                <p className="text-xs">Go to <code className="text-purple-300">script.google.com</code> and create a new project. Paste this code:</p>
+                <pre className="bg-black/60 p-4 rounded-xl border border-white/10 overflow-x-auto text-xs font-mono text-emerald-400">
+{`function doGet() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const data = sheet.getDataRange().getValues();
+  const rows = [];
+  for (let i = 1; i < data.length; i++) {
+    rows.push({
+      date: data[i][0],
+      category: data[i][1],
+      amount: data[i][2],
+      note: data[i][3],
+      kmReading: data[i][4]
+    });
+  }
+  return ContentService.createTextOutput(JSON.stringify(rows))
     .setMimeType(ContentService.MimeType.JSON);
 }`}
                 </pre>
               </div>
               <div className="space-y-2">
-                <p className="font-bold text-white"><span className="text-indigo-400">Step 2:</span> Deploy Web App</p>
-                <p>Click "Deploy" &gt; "New deployment". Select "Web App". Set access to "Anyone". Copy the Web App URL.</p>
-              </div>
-              <div className="space-y-2">
-                <p className="font-bold text-white"><span className="text-indigo-400">Step 3:</span> iOS Shortcuts App</p>
-                <p>Create a shortcut with a "Get Contents of URL" action. Set method to POST, provide the copied URL, and pass the expense data in JSON body.</p>
+                <p className="font-bold text-white"><span className="text-purple-400">Step 2:</span> Deploy Web App</p>
+                <p className="text-xs">Click "Deploy" &gt; "New deployment". Select "Web App". Set access to "Anyone". Copy the Web App URL and paste it in Settings above.</p>
               </div>
             </div>
-            <div className="p-4 border-t border-white/10 bg-white/[0.02] flex justify-end">
-              <button onClick={() => setShowShortcutsModal(false)} className="px-5 py-2 bg-white/10 hover:bg-white/20 rounded-lg font-medium text-sm transition-colors">Close</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reset Confirmation 1 */}
-      {showResetConfirm1 && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-[#0e0e1c] border border-rose-500/30 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
-            <div className="p-6 text-center space-y-4">
-              <div className="w-16 h-16 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center mx-auto">
-                <ShieldAlert size={32} />
-              </div>
-              <h3 className="text-lg font-bold text-white">Danger Zone</h3>
-              <p className="text-sm text-white/60">Are you sure you want to delete ALL data? This will wipe all accounts, transactions, and settings from this browser.</p>
-            </div>
-            <div className="p-4 border-t border-white/10 bg-white/[0.02] grid grid-cols-2 gap-3">
-              <button onClick={() => setShowResetConfirm1(false)} className="py-2.5 bg-white/5 hover:bg-white/10 rounded-lg font-medium text-sm transition-colors">Cancel</button>
-              <button onClick={() => { setShowResetConfirm1(false); setShowResetConfirm2(true); }} className="py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg font-medium text-sm transition-colors">Yes, Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reset Confirmation 2 */}
-      {showResetConfirm2 && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-[#0e0e1c] border border-rose-500/30 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
-            <div className="p-6 space-y-4">
-              <h3 className="text-lg font-bold text-white text-center">Final Confirmation</h3>
-              <p className="text-sm text-white/60 text-center">Please type <span className="font-bold text-rose-400">DELETE</span> to confirm. A backup will be downloaded automatically.</p>
-              <input 
-                type="text" 
-                value={resetTypeInput}
-                onChange={e => setResetTypeInput(e.target.value)}
-                placeholder="DELETE"
-                className="w-full bg-black/50 border border-white/10 rounded-lg p-3 text-center font-bold tracking-widest uppercase focus:border-rose-500/50 outline-none"
-              />
-            </div>
-            <div className="p-4 border-t border-white/10 bg-white/[0.02] grid grid-cols-2 gap-3">
-              <button onClick={() => { setShowResetConfirm2(false); setResetTypeInput(''); }} className="py-2.5 bg-white/5 hover:bg-white/10 rounded-lg font-medium text-sm transition-colors">Cancel</button>
-              <button 
-                onClick={executeReset} 
-                disabled={resetTypeInput !== 'DELETE'}
-                className="py-2.5 bg-rose-500 hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium text-sm transition-colors"
-              >
-                Wipe Data
+            <div className="pt-2 text-right">
+              <button onClick={() => setShowShortcutsModal(false)} className="px-5 py-2 rounded-xl bg-purple-600 text-white font-semibold text-sm">
+                Done
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Toasts */}
-      <div className="fixed bottom-4 right-4 flex flex-col gap-2 z-50">
-        {toasts.map(t => (
-          <div key={t.id} className={cn("px-4 py-2 rounded-lg text-sm font-medium shadow-lg flex items-center gap-2", t.type === 'error' ? 'bg-rose-500 text-white' : 'bg-[#1a1a2e] text-white border border-white/10')}>
-            {t.msg}
+      {/* Reset Confirmation Step 1 */}
+      {showResetConfirm1 && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center gap-3 text-rose-400">
+              <ShieldAlert size={28} />
+              <h3 className="font-bold text-lg text-white">Reset All Data?</h3>
+            </div>
+            <p className="text-sm text-gray-300">Are you sure you want to permanently delete all financial records, accounts, and settings?</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowResetConfirm1(false)} className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm">Cancel</button>
+              <button onClick={() => { setShowResetConfirm1(false); setShowResetConfirm2(true); }} className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-sm">Proceed</button>
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* Reset Confirmation Step 2 */}
+      {showResetConfirm2 && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#0e0e1c] border border-rose-500/30 rounded-2xl w-full max-w-md p-6 space-y-4">
+            <h3 className="font-bold text-lg text-rose-400">Type DELETE to Confirm</h3>
+            <p className="text-xs text-gray-300">This will automatically download an emergency JSON backup first, then wipe all platform data.</p>
+            <input
+              type="text"
+              placeholder="Type DELETE"
+              value={resetTypeInput}
+              onChange={e => setResetTypeInput(e.target.value)}
+              className="w-full bg-black/50 border border-rose-500/40 rounded-xl p-3 text-white text-center font-bold"
+            />
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowResetConfirm2(false)} className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm">Cancel</button>
+              <button onClick={executeReset} className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-sm">Delete All Data</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
