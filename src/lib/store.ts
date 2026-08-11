@@ -103,6 +103,23 @@ class Store {
       if (stored) {
         const parsed = JSON.parse(stored);
         this.state = { ...getDefaultState(), ...parsed };
+        
+        // Auto deduplicate existing stored items by date + amount + category
+        const cleanItems = <T extends { date?: string; amount: number; category?: string }>(arr: T[]): T[] => {
+          const seen = new Set<string>();
+          return (arr || []).filter(item => {
+            const d = (item.date || '').substring(0, 10);
+            const cat = (item.category || '').toLowerCase();
+            const amt = item.amount;
+            const key = `${d}_${amt}_${cat}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        };
+
+        if (this.state.expenses) this.state.expenses = cleanItems(this.state.expenses);
+        if (this.state.daily) this.state.daily = cleanItems(this.state.daily);
       } else {
         // Try migrate from v1
         const v1 = migrateV1();

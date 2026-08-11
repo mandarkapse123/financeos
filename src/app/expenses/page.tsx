@@ -51,11 +51,13 @@ export default function ExpensesPage() {
 
   const allCombinedExpenses = rawCombined.filter(e => {
     const dateStr = (e.date || '').substring(0, 10);
-    const key = `${dateStr}_${e.amount}_${e.category}_${(e.note || e.name || '').trim().toLowerCase()}`;
+    const key = `${dateStr}_${e.amount}_${(e.category || '').toLowerCase()}`;
     if (seenKeys.has(key)) return false;
     seenKeys.add(key);
     return true;
   }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const showKmColumn = selectedCat === 'Petrol' || selectedCat === 'Transport';
 
   // Petrol Specific Stats & Fuel Mileage Calculation
   const petrolLogs = allCombinedExpenses
@@ -296,7 +298,7 @@ export default function ExpensesPage() {
                 <th className="p-4">Date</th>
                 <th className="p-4">Name / Note</th>
                 <th className="p-4">Category</th>
-                <th className="p-4">KM Reading</th>
+                {showKmColumn && <th className="p-4">KM Reading</th>}
                 <th className="p-4 text-right">Amount</th>
                 <th className="p-4 text-right">Action</th>
               </tr>
@@ -321,9 +323,11 @@ export default function ExpensesPage() {
                         {CATEGORY_ICONS[exp.category] || '📦'} {exp.category}
                       </span>
                     </td>
-                    <td className="p-4 text-xs font-mono text-purple-300 font-medium">
-                      {kmDisplay}
-                    </td>
+                    {showKmColumn && (
+                      <td className="p-4 text-xs font-mono text-purple-300 font-medium">
+                        {kmDisplay}
+                      </td>
+                    )}
                     <td className="p-4 text-right font-bold text-rose-400">
                       -{formatCurrency(exp.amount, currency)}
                     </td>
