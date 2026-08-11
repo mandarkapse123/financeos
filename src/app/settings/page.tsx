@@ -10,10 +10,22 @@ import {
 
 export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-
   const { state, store, refresh } = useStore();
   const [toasts, setToasts] = useState<{ id: number, msg: string, type: string }[]>([]);
+
+  useEffect(() => {
+    setMounted(true);
+    // Check if endpoint passed in URL params (for easy 1-click configuration on iPad/Mobile)
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlEndpoint = params.get('endpoint');
+      if (urlEndpoint && urlEndpoint !== state.settings.endpoint) {
+        store.updateSettings({ endpoint: urlEndpoint });
+        refresh();
+        showToast('Google Sheet Endpoint synced automatically!');
+      }
+    }
+  }, []);
 
   // Accounts
   const [newAccName, setNewAccName] = useState('');

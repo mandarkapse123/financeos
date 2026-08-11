@@ -325,10 +325,10 @@ export default function InvestmentsPage() {
       investedAmount: invAmt,
       currentValue: curVal,
       date: formData.get('date') as string,
-      goalId: formData.get('goalId') as string || '',
+      goalId: editing?.goalId || '',
       note: formData.get('note') as string || '',
-      tickerSymbol: formData.get('tickerSymbol') as string || '',
-      isin: formData.get('isin') as string || '',
+      tickerSymbol: (formData.get('isin') as string) || '',
+      isin: (formData.get('isin') as string) || '',
       quantity: parseFloat(formData.get('quantity') as string) || undefined,
       avgBuyPrice: parseFloat(formData.get('avgBuyPrice') as string) || undefined,
       closingPrice: parseFloat(formData.get('closingPrice') as string) || undefined,
@@ -482,10 +482,18 @@ export default function InvestmentsPage() {
                       {ret >= 0 ? '+' : ''}{formatCurrency(ret, currency)}
                       <span className="text-xs font-normal block">({retPct >= 0 ? '+' : ''}{retPct.toFixed(2)}%)</span>
                     </td>
-                    <td className="p-4 text-right">
+                    <td className="p-4 text-right flex justify-end gap-1">
+                      <button
+                        onClick={() => { setEditing(inv); setAddModalOpen(true); }}
+                        className="text-gray-400 hover:text-white p-1"
+                        title="Edit holding"
+                      >
+                        ✏️
+                      </button>
                       <button
                         onClick={() => { store.deleteInvestment(inv.id); refresh(); }}
-                        className="text-gray-500 hover:text-rose-400 p-1"
+                        className="text-gray-400 hover:text-rose-400 p-1"
+                        title="Delete holding"
                       >
                         🗑️
                       </button>
@@ -581,51 +589,55 @@ export default function InvestmentsPage() {
       {addModalOpen && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-lg font-bold">Add Investment</h3>
+            <h3 className="text-lg font-bold">{editing ? 'Edit Investment Holding' : 'Add Investment Holding'}</h3>
             <form onSubmit={handleSaveInvestment} className="space-y-3 text-sm">
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Asset / Stock Name</label>
-                <input type="text" name="name" required placeholder="e.g. Reliance, HDFC Flexi Cap" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white" />
+                <input type="text" name="name" required defaultValue={editing?.name || ''} placeholder="e.g. Reliance Industries, HDFC Flexi Cap" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-400 block mb-1">Asset Type</label>
-                  <select name="type" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white">
+                  <select name="type" defaultValue={editing?.type || 'Stocks / Equity'} className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white">
                     {INVESTMENT_TYPES.map(t => <option key={t} value={t} className="bg-[#141426]">{t}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-xs text-gray-400 block mb-1">ISIN / Symbol</label>
-                  <input type="text" name="isin" placeholder="e.g. INE002A01018" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white font-mono" />
+                  <input type="text" name="isin" defaultValue={editing?.isin || editing?.tickerSymbol || ''} placeholder="e.g. INE002A01018" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white font-mono" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-400 block mb-1">Quantity</label>
-                  <input type="number" step="any" name="quantity" placeholder="10" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white" />
+                  <input type="number" step="any" name="quantity" defaultValue={editing?.quantity || ''} placeholder="10" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white font-bold" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-400 block mb-1">Avg Buy Price</label>
-                  <input type="number" step="any" name="avgBuyPrice" placeholder="2400" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white" />
+                  <label className="text-xs text-gray-400 block mb-1">Avg Buy Price ({currency})</label>
+                  <input type="number" step="any" name="avgBuyPrice" defaultValue={editing?.avgBuyPrice || ''} placeholder="2400" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white font-bold" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-400 block mb-1">Invested Amount ({currency})</label>
-                  <input type="number" step="any" name="investedAmount" required placeholder="24000" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white" />
+                  <input type="number" step="any" name="investedAmount" required defaultValue={editing?.investedAmount || ''} placeholder="24000" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white font-bold" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-400 block mb-1">Current / Closing Value</label>
-                  <input type="number" step="any" name="currentValue" placeholder="28000" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white" />
+                  <label className="text-xs text-gray-400 block mb-1">Current Value ({currency})</label>
+                  <input type="number" step="any" name="currentValue" defaultValue={editing?.currentValue || ''} placeholder="28000" className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white font-bold" />
                 </div>
               </div>
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Date</label>
-                <input type="date" name="date" required defaultValue={new Date().toISOString().split('T')[0]} className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white" />
+                <input type="date" name="date" required defaultValue={editing?.date || new Date().toISOString().split('T')[0]} className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Notes / Description (Optional)</label>
+                <input type="text" name="note" defaultValue={editing?.note || ''} placeholder="Notes..." className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setAddModalOpen(false)} className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10">Cancel</button>
-                <button type="submit" className="px-5 py-2 rounded-xl font-semibold bg-purple-600 hover:bg-purple-500 text-white">Save Holding</button>
+                <button type="submit" className="px-5 py-2 rounded-xl font-semibold bg-purple-600 hover:bg-purple-500 text-white shadow-lg">Save Holding</button>
               </div>
             </form>
           </div>
