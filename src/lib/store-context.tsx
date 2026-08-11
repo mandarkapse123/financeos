@@ -23,37 +23,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsub = store.subscribe(refresh);
 
-    // Automatic Background Google Sheet Sync
+    // Automatic Cloud Sync across all devices (PC ↔ iPad ↔ Phone)
     const autoSync = async () => {
-      const endpoint = store.getState().settings.endpoint;
-      if (!endpoint) return;
-
+      // 1. Fetch from server cloud endpoint /api/sync
       try {
-        const res = await fetch(endpoint, { method: 'GET', mode: 'cors' });
+        const res = await fetch('/api/sync', { cache: 'no-store' });
         const json = await res.json();
-        // 1. Full Cloud Backup Sync across all devices (Investments, Goals, Income)
-        if (json && json.fullState) {
-          store.importFullState(json.fullState);
+        if (json && json.state) {
+          store.importFullState(json.state);
         }
+      } catch (err) {}
 
-        // 2. Sync Google Sheet rows (Daily Logs & Expenses)
-        let items: any[] = [];
-        if (Array.isArray(json)) items = json;
-        else if (json && Array.isArray(json.rows)) items = json.rows;
-        else if (json && Array.isArray(json.data)) items = json.data;
+      // 2. Also fetch Google Apps Script backend if configured
+      const endpoint = store.getState().settings.endpoint;
+      if (endpoint) {
+        try {
+          const res = await fetch(endpoint, { method: 'GET', mode: 'cors' });
+          const json = await res.json();
+          if (json && json.fullState) {
+            store.importFullState(json.fullState);
+          }
 
-        store.syncSheetItems(items);
-        refresh();
-      } catch (err) {
-        // Silent catch for background auto sync
+          let items: any[] = [];
+          if (Array.isArray(json)) items = json;
+          else if (json && Array.isArray(json.rows)) items = json.rows;
+          else if (json && Array.isArray(json.data)) items = json.data;
+
+          store.syncSheetItems(items);
+        } catch (err) {}
       }
+
+      refresh();
     };
 
     // Initial sync on app load
     autoSync();
 
-    // Polling sync every 30 seconds
-    const intervalId = setInterval(autoSync, 30000);
+    // Polling sync every 4 seconds for instant real-time multi-device sync
+    const intervalId = setInterval(autoSync, 4000);
 
     return () => {
       unsub();

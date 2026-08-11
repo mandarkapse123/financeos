@@ -147,18 +147,33 @@ class Store {
     this.pushToCloud();
   }
 
+  private saveLocalStorageOnly() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+    } catch {}
+    this.notify();
+  }
+
   pushToCloud() {
     if (typeof window === 'undefined') return;
-    const endpoint = this.state.settings.endpoint;
-    if (!endpoint) return;
-
     try {
-      fetch(endpoint, {
+      // 1. Push to server cloud endpoint /api/sync
+      fetch('/api/sync', {
         method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'syncFullState', fullState: this.state })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: this.state })
       }).catch(() => {});
+
+      // 2. Also push to Google Apps Script endpoint if configured
+      const endpoint = this.state.settings.endpoint;
+      if (endpoint) {
+        fetch(endpoint, {
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'syncFullState', fullState: this.state })
+        }).catch(() => {});
+      }
     } catch {
       // silent catch
     }
@@ -167,17 +182,47 @@ class Store {
   importFullState(remoteState: Partial<AppState>) {
     if (!remoteState || typeof remoteState !== 'object') return;
     try {
+      let updated = false;
+
       if (Array.isArray(remoteState.investments) && remoteState.investments.length > 0) {
-        this.syncInvestments(remoteState.investments);
+        this.state.investments = remoteState.investments;
+        updated = true;
+      }
+      if (Array.isArray(remoteState.expenses) && remoteState.expenses.length > 0) {
+        this.state.expenses = remoteState.expenses;
+        updated = true;
+      }
+      if (Array.isArray(remoteState.daily) && remoteState.daily.length > 0) {
+        this.state.daily = remoteState.daily;
+        updated = true;
       }
       if (Array.isArray(remoteState.income) && remoteState.income.length > 0) {
         this.state.income = remoteState.income;
+        updated = true;
       }
       if (Array.isArray(remoteState.goals) && remoteState.goals.length > 0) {
         this.state.goals = remoteState.goals;
+        updated = true;
       }
       if (Array.isArray(remoteState.subscriptions) && remoteState.subscriptions.length > 0) {
         this.state.subscriptions = remoteState.subscriptions;
+        updated = true;
+      }
+      if (Array.isArray(remoteState.rentEntries) && remoteState.rentEntries.length > 0) {
+        this.state.rentEntries = remoteState.rentEntries;
+        updated = true;
+      }
+      if (Array.isArray(remoteState.rentExpenses) && remoteState.rentExpenses.length > 0) {
+        this.state.rentExpenses = remoteState.rentExpenses;
+        updated = true;
+      }
+      if (Array.isArray(remoteState.rentReceipts) && remoteState.rentReceipts.length > 0) {
+        this.state.rentReceipts = remoteState.rentReceipts;
+        updated = true;
+      }
+
+      if (updated) {
+        this.saveLocalStorageOnly();
       }
     } catch {
       // ignore
