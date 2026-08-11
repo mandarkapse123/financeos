@@ -2,12 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store-context';
-import { formatCurrency, formatDate, CATEGORY_ICONS, CATEGORY_COLORS } from '@/lib/utils';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip } from 'chart.js';
+import { formatCurrency, formatDate, CATEGORY_ICONS, CATEGORY_COLORS, EXPENSE_CATEGORIES } from '@/lib/utils';
 import { DailyExpense } from '@/lib/types';
 import { generateId } from '@/lib/store';
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
 export default function DailyPage() {
   const [mounted, setMounted] = useState(false);
@@ -16,14 +13,16 @@ export default function DailyPage() {
   const { state, store, refresh } = useStore();
   const rawDaily = store.getDaily();
   const rawExpenses = store.getExpenses();
-  const currency = state.settings.currency;
+  const currency = state.settings.currency || '₹';
+  const deletedList = state.settings.deletedIds || [];
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<DailyExpense | null>(null);
+  const [selectedCat, setSelectedCat] = useState<string>('All');
 
   if (!mounted) return null;
 
-  // Combine Daily entries + Expense entries with STRICT DEDUPLICATION
+  // Single Master Source of Truth: Combine rawDaily + rawExpenses with STRICT UNIQUE DEDUPLICATION & DELETION BLACKLIST
   const seenKeys = new Set<string>();
   const rawCombined = [
     ...rawDaily,
@@ -39,24 +38,37 @@ export default function DailyPage() {
     }))
   ];
 
-  const combinedDaily = rawCombined.filter(d => {
+  const masterDailyLogs = rawCombined.filter(d => {
+    if (!d || !d.amount) return false;
     const dateStr = (d.date || '').substring(0, 10);
-    const key = `${dateStr}_${d.amount}_${d.category}_${(d.note || '').trim().toLowerCase()}`;
-    if (seenKeys.has(key)) return false;
-    seenKeys.add(key);
+    const catLower = (d.category || '').toLowerCase();
+    const signature = `${dateStr}_${d.amount}_${catLower}`;
+
+    // Skip if explicitly deleted by user in FinanceOS!
+    if (deletedList.includes(d.id) || deletedList.includes(signature)) {
+      return false;
+    }
+
+    if (seenKeys.has(signature)) return false;
+    seenKeys.add(signature);
     return true;
   }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todaysLog = combinedDaily.filter(d => (d.date || '').startsWith(todayStr));
+  const todayStr = new Date().toISOString().substring(0, 10);
+  const todaysLog = masterDailyLogs.filter(d => (d.date || '').startsWith(todayStr));
   const todaysTotal = todaysLog.reduce((sum, d) => sum + d.amount, 0);
 
-  const totalSpend = combinedDaily.reduce((sum, d) => sum + d.amount, 0);
-  const avgSpend = combinedDaily.length ? totalSpend / combinedDaily.length : 0;
+  const totalSpend = masterDailyLogs.reduce((sum, d) => sum + d.amount, 0);
+  const avgSpend = masterDailyLogs.length ? (totalSpend / masterDailyLogs.length) : 0;
+
+  // Filtered view based on tab
+  const filteredLogs = selectedCat === 'All'
+    ? masterDailyLogs
+    : masterDailyLogs.filter(d => d.category === selectedCat);
 
   // Heatmap generation
   const heatData: Record<string, number> = {};
-  combinedDaily.forEach(d => {
+  masterDailyLogs.forEach(d => {
     const dt = (d.date || '').split('T')[0];
     if (dt) heatData[dt] = (heatData[dt] || 0) + d.amount;
   });
@@ -101,7 +113,7 @@ export default function DailyPage() {
     const cat = formData.get('category') as string;
     const km = formData.get('kmReading') as string;
 
-    store.upsertDaily({
+    const item: DailyExpense = {
       id: editing?.id || generateId(),
       accountId: state.currentAccountId,
       amount: amt,
@@ -110,6 +122,18 @@ export default function DailyPage() {
       date: formData.get('date') as string,
       note: formData.get('note') as string || '',
       kmReading: km ? parseFloat(km) : undefined,
+    };
+
+    store.upsertDaily(item);
+    store.upsertExpense({
+      id: item.id,
+      accountId: item.accountId,
+      name: item.note || item.category,
+      amount: item.amount,
+      category: item.category,
+      date: item.date,
+      note: item.note,
+      kmReading: item.kmReading,
     });
 
     refresh();
@@ -117,13 +141,23 @@ export default function DailyPage() {
     setEditing(null);
   };
 
+  const handleDelete = (id: string) => {
+    store.deleteDaily(id);
+    refresh();
+  };
+
+  const allCategories = [
+    ...EXPENSE_CATEGORIES,
+    ...(state.settings.customCategories || [])
+  ];
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 text-white min-h-screen">
-      {/* Header */}
+      {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Daily Expense Logs & iPhone Sync</h1>
-          <p className="text-gray-400 text-sm">All entries logged via iPhone Back Tap, Shortcuts, or Quick Add</p>
+          <p className="text-gray-400 text-sm">All entries logged via iPhone Back Tap, Shortcuts, or Web</p>
         </div>
         <button
           onClick={() => { setEditing(null); setModalOpen(true); }}
@@ -134,28 +168,44 @@ export default function DailyPage() {
       </div>
 
       {/* 4 Summary Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-[#0e0e1c] border border-white/[0.07] p-5 rounded-2xl">
           <span className="text-xs text-gray-400 font-semibold uppercase">Today's Spend</span>
           <p className="text-2xl font-bold text-emerald-400 mt-1">{formatCurrency(todaysTotal, currency)}</p>
+          <span className="text-[11px] text-gray-500 mt-1 block">{todaysLog.length} items logged today</span>
         </div>
         <div className="bg-[#0e0e1c] border border-white/[0.07] p-5 rounded-2xl">
           <span className="text-xs text-gray-400 font-semibold uppercase">Avg Daily Spend</span>
           <p className="text-2xl font-bold text-purple-400 mt-1">{formatCurrency(avgSpend, currency)}</p>
+          <span className="text-[11px] text-gray-500 mt-1 block">Across active log days</span>
         </div>
         <div className="bg-[#0e0e1c] border border-white/[0.07] p-5 rounded-2xl">
           <span className="text-xs text-gray-400 font-semibold uppercase">Total Logs Count</span>
-          <p className="text-2xl font-bold text-white mt-1">{combinedDaily.length} items</p>
+          <p className="text-2xl font-bold text-white mt-1">{masterDailyLogs.length} items</p>
+          <span className="text-[11px] text-gray-500 mt-1 block">Deduplicated active logs</span>
         </div>
         <div className="bg-[#0e0e1c] border border-white/[0.07] p-5 rounded-2xl">
-          <span className="text-xs text-gray-400 font-semibold uppercase">Total Logged</span>
+          <span className="text-xs text-gray-400 font-semibold uppercase">Total Logged Spend</span>
           <p className="text-2xl font-bold text-rose-400 mt-1">{formatCurrency(totalSpend, currency)}</p>
+          <span className="text-[11px] text-gray-500 mt-1 block">Lifetime daily logs</span>
         </div>
       </div>
 
       {/* Activity Heatmap */}
-      <div className="bg-[#0e0e1c] border border-white/[0.07] p-6 rounded-2xl space-y-4">
-        <h3 className="font-semibold text-lg">Activity Heatmap (Last 27 Weeks)</h3>
+      <div className="bg-[#0e0e1c] border border-white/[0.07] p-6 rounded-2xl space-y-4 shadow-xl">
+        <div className="flex justify-between items-center">
+          <h3 className="font-semibold text-lg">Activity Heatmap (Last 27 Weeks)</h3>
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <span>Less</span>
+            <div className="flex gap-1">
+              <div className="w-3 h-3 rounded-sm bg-[#1c1c30]" />
+              <div className="w-3 h-3 rounded-sm bg-purple-900/40" />
+              <div className="w-3 h-3 rounded-sm bg-purple-700/60" />
+              <div className="w-3 h-3 rounded-sm bg-purple-500" />
+            </div>
+            <span>More</span>
+          </div>
+        </div>
         <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-none">
           {heatmapCells.map((week, wIdx) => (
             <div key={wIdx} className="flex flex-col gap-1">
@@ -163,7 +213,7 @@ export default function DailyPage() {
                 <div
                   key={cIdx}
                   title={`${cell.date}: ${cell.val ? formatCurrency(cell.val, currency) : 'No spend'}`}
-                  className="w-3 h-3 rounded-sm transition-transform hover:scale-125 cursor-pointer"
+                  className="w-3.5 h-3.5 rounded-sm transition-transform hover:scale-125 cursor-pointer"
                   style={{ backgroundColor: getLevelColor(cell.level) }}
                 />
               ))}
@@ -172,10 +222,48 @@ export default function DailyPage() {
         </div>
       </div>
 
-      {/* Combined Log Table */}
-      <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 space-y-4">
-        <h3 className="font-semibold text-lg">Full Transaction Log (iPhone + Web)</h3>
+      {/* Combined Log Table with Category Tabs */}
+      <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 space-y-4 shadow-xl">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h3 className="font-semibold text-lg">Full Transaction Log (iPhone + Web)</h3>
+          <span className="text-xs text-gray-400">Filtered & deduplicated logs</span>
+        </div>
 
+        {/* Category Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-white/10">
+          <button
+            onClick={() => setSelectedCat('All')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+              selectedCat === 'All'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            All Logs ({masterDailyLogs.length})
+          </button>
+
+          {allCategories.map(cat => {
+            const count = masterDailyLogs.filter(d => d.category === cat).length;
+            const icon = CATEGORY_ICONS[cat] || '📦';
+            return (
+              <button
+                key={cat}
+                onClick={() => setSelectedCat(cat)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-colors ${
+                  selectedCat === cat
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                    : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <span>{icon}</span>
+                <span>{cat}</span>
+                <span className="opacity-60 text-[10px]">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Logs Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-[#141426] text-gray-400 text-xs uppercase font-semibold">
@@ -184,56 +272,60 @@ export default function DailyPage() {
                 <th className="p-4">Category</th>
                 <th className="p-4">Description / Note</th>
                 <th className="p-4">Payment Method</th>
-                <th className="p-4">KM Reading</th>
+                {(selectedCat === 'Petrol' || selectedCat === 'Transport') && <th className="p-4">KM Reading</th>}
                 <th className="p-4 text-right">Amount</th>
                 <th className="p-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {combinedDaily.map((d) => (
-                <tr key={d.id} className="hover:bg-white/[0.02] transition-colors">
-                  <td className="p-4 text-gray-400 text-xs">{formatDate(d.date)}</td>
-                  <td className="p-4">
-                    <span
-                      className="px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1"
-                      style={{
-                        backgroundColor: `${CATEGORY_COLORS[d.category] || '#94a3b8'}20`,
-                        color: CATEGORY_COLORS[d.category] || '#94a3b8',
-                      }}
-                    >
-                      {CATEGORY_ICONS[d.category] || '📦'} {d.category}
-                    </span>
-                  </td>
-                  <td className="p-4 font-medium">{d.note || '-'}</td>
-                  <td className="p-4 text-xs font-semibold text-purple-300">
-                    <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded">
-                      {d.paymentMethod || 'UPI'}
-                    </span>
-                  </td>
-                  <td className="p-4 text-xs font-mono text-purple-300">
-                    {(d.category === 'Petrol' || d.category === 'Transport') && d.kmReading ? `⛽ ${d.kmReading.toLocaleString()} km` : '—'}
-                  </td>
-                  <td className="p-4 text-right font-bold text-rose-400">
-                    -{formatCurrency(d.amount, currency)}
-                  </td>
-                  <td className="p-4 text-right">
-                    <button
-                      onClick={() => {
-                        store.deleteDaily(d.id);
-                        store.deleteExpense(d.id);
-                        refresh();
-                      }}
-                      className="text-gray-500 hover:text-rose-400 p-1"
-                    >
-                      🗑️
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {combinedDaily.length === 0 && (
+              {filteredLogs.map((d) => {
+                const isFuel = d.category === 'Petrol' || d.category === 'Transport';
+                const kmDisplay = isFuel && d.kmReading ? `⛽ ${d.kmReading.toLocaleString()} km` : '—';
+
+                return (
+                  <tr key={d.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="p-4 text-gray-400 text-xs">{formatDate(d.date)}</td>
+                    <td className="p-4">
+                      <span
+                        className="px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1"
+                        style={{
+                          backgroundColor: `${CATEGORY_COLORS[d.category] || '#94a3b8'}20`,
+                          color: CATEGORY_COLORS[d.category] || '#94a3b8',
+                        }}
+                      >
+                        {CATEGORY_ICONS[d.category] || '📦'} {d.category}
+                      </span>
+                    </td>
+                    <td className="p-4 font-medium">{d.note || '-'}</td>
+                    <td className="p-4 text-xs font-semibold text-purple-300">
+                      <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded">
+                        {d.paymentMethod || 'UPI'}
+                      </span>
+                    </td>
+                    {(selectedCat === 'Petrol' || selectedCat === 'Transport') && (
+                      <td className="p-4 text-xs font-mono text-purple-300">
+                        {kmDisplay}
+                      </td>
+                    )}
+                    <td className="p-4 text-right font-bold text-rose-400">
+                      -{formatCurrency(d.amount, currency)}
+                    </td>
+                    <td className="p-4 text-right">
+                      <button
+                        onClick={() => handleDelete(d.id)}
+                        className="text-gray-400 hover:text-rose-400 p-1.5 transition-colors"
+                        title="Delete permanently"
+                      >
+                        🗑️
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredLogs.length === 0 && (
                 <tr>
                   <td colSpan={7} className="text-center py-8 text-gray-500">
-                    No daily expenses logged yet.
+                    No daily expenses logged in this category.
                   </td>
                 </tr>
               )}
@@ -246,61 +338,57 @@ export default function DailyPage() {
       {modalOpen && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-lg font-bold">Log Daily Expense</h3>
-            <form onSubmit={handleSaveDaily} className="space-y-4 text-sm">
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Amount ({currency})</label>
-                <input
-                  type="number"
-                  step="any"
-                  name="amount"
-                  required
-                  autoFocus
-                  placeholder="0.00"
-                  defaultValue={editing?.amount || ''}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-lg font-bold text-white text-center"
-                />
-              </div>
-
+            <h3 className="text-lg font-bold">{editing ? 'Edit Daily Log' : 'Log Daily Expense'}</h3>
+            <form onSubmit={handleSaveDaily} className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Amount ({currency})</label>
+                  <input
+                    type="number"
+                    step="any"
+                    name="amount"
+                    required
+                    defaultValue={editing?.amount || ''}
+                    placeholder="250"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-bold"
+                  />
+                </div>
                 <div>
                   <label className="text-xs text-gray-400 block mb-1">Category</label>
                   <select
                     name="category"
-                    defaultValue={editing?.category || 'Food & Dining'}
+                    defaultValue={editing?.category || 'Blinkit'}
                     className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
                   >
-                    {Object.keys(CATEGORY_ICONS).map((c) => (
-                      <option key={c} value={c} className="bg-[#141426]">
-                        {CATEGORY_ICONS[c]} {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Payment Method</label>
-                  <select
-                    name="paymentMethod"
-                    defaultValue={editing?.paymentMethod || 'UPI'}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
-                  >
-                    {['UPI', 'Cash', 'Debit Card', 'Credit Card', 'Net Banking'].map((pm) => (
-                      <option key={pm} value={pm} className="bg-[#141426]">
-                        {pm}
-                      </option>
+                    {allCategories.map(c => (
+                      <option key={c} value={c} className="bg-[#141426]">{c}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Odometer KM Reading (For Petrol/Transport)</label>
+                <label className="text-xs text-gray-400 block mb-1">Payment Method</label>
+                <select
+                  name="paymentMethod"
+                  defaultValue={editing?.paymentMethod || 'UPI'}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
+                >
+                  <option value="UPI" className="bg-[#141426]">UPI</option>
+                  <option value="Cash" className="bg-[#141426]">Cash</option>
+                  <option value="Credit Card" className="bg-[#141426]">Credit Card</option>
+                  <option value="Debit Card" className="bg-[#141426]">Debit Card</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-purple-300 font-semibold block mb-1">⛽ Odometer KM Reading (For Petrol)</label>
                 <input
                   type="number"
                   name="kmReading"
-                  placeholder="e.g. 45280"
                   defaultValue={editing?.kmReading || ''}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
+                  placeholder="e.g. 79000"
+                  className="w-full bg-purple-950/30 border border-purple-500/40 rounded-xl p-3 text-white font-mono"
                 />
               </div>
 
@@ -316,12 +404,12 @@ export default function DailyPage() {
               </div>
 
               <div>
-                <label className="text-xs text-gray-400 block mb-1">Note (Optional)</label>
+                <label className="text-xs text-gray-400 block mb-1">Description / Note</label>
                 <input
                   type="text"
                   name="note"
-                  placeholder="Notes..."
                   defaultValue={editing?.note || ''}
+                  placeholder="e.g. Grocery order, Lunch"
                   className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
                 />
               </div>
@@ -336,7 +424,7 @@ export default function DailyPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl font-semibold bg-purple-600 hover:bg-purple-500 text-white"
+                  className="px-5 py-2 rounded-xl font-semibold bg-purple-600 hover:bg-purple-500 text-white shadow-lg"
                 >
                   Save Log
                 </button>

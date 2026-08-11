@@ -260,6 +260,7 @@ class Store {
   // Cleanly Sync Google Sheet items (mirroring Google Sheet state, clearing removed rows, no duplicates)
   syncSheetItems(items: Array<{ id?: string; date: string; amount: number; category: string; note?: string; method?: string; kmReading?: number }>) {
     const accountId = this.state.currentAccountId;
+    const deletedList = this.state.settings.deletedIds || [];
 
     const sheetDaily: AppState['daily'] = [];
     const sheetExpenses: AppState['expenses'] = [];
@@ -273,6 +274,12 @@ class Store {
       const note = item.note || '';
       const kmVal = item.kmReading ? parseFloat(item.kmReading as any) : undefined;
       const sheetId = `sheet_row_${index}_${dateStr}_${amt}_${cat}`;
+      const signature = `${dateStr}_${amt}_${cat.toLowerCase()}`;
+
+      // Skip if explicitly deleted by user in FinanceOS!
+      if (deletedList.includes(sheetId) || deletedList.includes(signature)) {
+        return;
+      }
 
       sheetDaily.push({
         id: sheetId,
@@ -311,10 +318,24 @@ class Store {
     this.save();
   }
 
-  // Expenses
+  // Expenses & Daily Unified Deletion
   getExpenses() { return this.getForAccount(this.state.expenses); }
   upsertExpense(item: AppState['expenses'][0]) { this.state.expenses = this.upsert(this.state.expenses, item); this.save(); }
-  deleteExpense(id: string) { this.state.expenses = this.remove(this.state.expenses, id); this.save(); }
+  deleteExpense(id: string) {
+    const target = this.state.expenses.find(e => e.id === id) || this.state.daily.find(d => d.id === id);
+    if (target) {
+      const dateStr = (target.date || '').substring(0, 10);
+      const signature = `${dateStr}_${target.amount}_${(target.category || '').toLowerCase()}`;
+      const deletedList = this.state.settings.deletedIds || [];
+      if (!deletedList.includes(id)) deletedList.push(id);
+      if (!deletedList.includes(signature)) deletedList.push(signature);
+      this.state.settings.deletedIds = deletedList;
+    }
+
+    this.state.expenses = this.state.expenses.filter(x => x.id !== id);
+    this.state.daily = this.state.daily.filter(x => x.id !== id);
+    this.save();
+  }
 
   // Subscriptions
   getSubscriptions() { return this.getForAccount(this.state.subscriptions); }
@@ -352,7 +373,7 @@ class Store {
   // Daily
   getDaily() { return this.getForAccount(this.state.daily); }
   upsertDaily(item: AppState['daily'][0]) { this.state.daily = this.upsert(this.state.daily, item); this.save(); }
-  deleteDaily(id: string) { this.state.daily = this.remove(this.state.daily, id); this.save(); }
+  deleteDaily(id: string) { this.deleteExpense(id); }
 
   // Rent
   getRentEntries() { return this.getForAccount(this.state.rentEntries); }

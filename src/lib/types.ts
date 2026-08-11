@@ -143,6 +143,7 @@ export interface AppSettings {
   endpoint: string;
   budgets: Budget;
   customCategories?: string[];
+  deletedIds?: string[];
   theme?: 'dark' | 'light';
 }
 

@@ -206,8 +206,87 @@ export default function InvestmentsPage() {
     setParsedHoldings(holdings);
   };
 
+  // Helper to club multiple orders of the same Stock or Mutual Fund together
+  const clubInvestments = (invList: Investment[]) => {
+    const grouped: Record<string, Investment & { orderCount: number }> = {};
+
+    invList.forEach(inv => {
+      const normName = inv.name.trim().toLowerCase().replace(/\s+/g, ' ');
+      const key = (inv.isin || inv.tickerSymbol || normName).toLowerCase();
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          ...inv,
+          quantity: inv.quantity || 1,
+          investedAmount: inv.investedAmount || 0,
+          currentValue: inv.currentValue || inv.investedAmount || 0,
+          avgBuyPrice: inv.avgBuyPrice || (inv.quantity ? inv.investedAmount / inv.quantity : inv.investedAmount),
+          closingPrice: inv.closingPrice || (inv.quantity ? (inv.currentValue || inv.investedAmount) / inv.quantity : inv.investedAmount),
+          unrealisedPnl: inv.unrealisedPnl || ((inv.currentValue || inv.investedAmount) - inv.investedAmount),
+          orderCount: 1,
+        };
+      } else {
+        const existing = grouped[key];
+        const newQty = (existing.quantity || 0) + (inv.quantity || 0);
+        const newInvested = existing.investedAmount + inv.investedAmount;
+        const newCurrent = (existing.currentValue || 0) + (inv.currentValue || inv.investedAmount || 0);
+        const newAvgBuy = newQty > 0 ? (newInvested / newQty) : existing.avgBuyPrice;
+        const latestClose = inv.closingPrice || existing.closingPrice;
+        const newPnl = newCurrent - newInvested;
+
+        grouped[key] = {
+          ...existing,
+          quantity: newQty,
+          investedAmount: newInvested,
+          currentValue: newCurrent,
+          avgBuyPrice: newAvgBuy,
+          closingPrice: latestClose,
+          unrealisedPnl: newPnl,
+          orderCount: existing.orderCount + 1,
+          note: `Combined position (${existing.orderCount + 1} orders)`,
+        };
+      }
+    });
+
+    return Object.values(grouped);
+  };
+
+  const clubParsedHoldings = (holdingsList: ParsedGrowwHolding[]) => {
+    const grouped: Record<string, ParsedGrowwHolding> = {};
+
+    holdingsList.forEach(h => {
+      const normName = h.name.trim().toLowerCase().replace(/\s+/g, ' ');
+      const key = (h.isin || normName).toLowerCase();
+
+      if (!grouped[key]) {
+        grouped[key] = { ...h };
+      } else {
+        const existing = grouped[key];
+        const newQty = existing.quantity + h.quantity;
+        const newBuyVal = existing.buyValue + h.buyValue;
+        const newCloseVal = existing.closingValue + h.closingValue;
+        const newAvgPrice = newQty > 0 ? (newBuyVal / newQty) : existing.avgBuyPrice;
+
+        grouped[key] = {
+          ...existing,
+          quantity: newQty,
+          buyValue: newBuyVal,
+          closingValue: newCloseVal,
+          avgBuyPrice: newAvgPrice,
+          closingPrice: h.closingPrice || existing.closingPrice,
+          unrealisedPnl: newCloseVal - newBuyVal,
+        };
+      }
+    });
+
+    return Object.values(grouped);
+  };
+
+  const displayInvestments = clubInvestments(investments);
+
   const confirmImportHoldings = () => {
-    parsedHoldings.forEach(h => {
+    const clubbedParsed = clubParsedHoldings(parsedHoldings);
+    clubbedParsed.forEach(h => {
       store.upsertInvestment({
         id: generateId(),
         accountId: state.currentAccountId,
@@ -217,7 +296,7 @@ export default function InvestmentsPage() {
         currentValue: h.closingValue,
         date: new Date().toISOString().split('T')[0],
         goalId: '',
-        note: `Imported Groww statement${h.clientCode ? ' (UCC: ' + h.clientCode + ')' : ''}`,
+        note: `Imported statement${h.clientCode ? ' (UCC: ' + h.clientCode + ')' : ''}`,
         tickerSymbol: h.isin || '',
         isin: h.isin,
         quantity: h.quantity,
@@ -367,13 +446,14 @@ export default function InvestmentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {investments.map(inv => {
+              {displayInvestments.map(inv => {
                 const ret = (inv.currentValue || inv.investedAmount) - inv.investedAmount;
                 const retPct = inv.investedAmount ? (ret / inv.investedAmount) * 100 : 0;
                 return (
                   <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-4 font-medium">
                       {inv.name}
+                      {inv.note && <span className="text-[10px] text-purple-300 block">{inv.note}</span>}
                       {inv.clientCode && <span className="text-[10px] text-emerald-400 block font-mono">UCC: {inv.clientCode}</span>}
                     </td>
                     <td className="p-4 text-xs font-mono text-gray-400">
