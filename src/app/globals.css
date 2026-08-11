@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @import 'tailwindcss';
 
 @theme {
@@ -14,49 +14,106 @@
 :root, [data-theme="dark"] {
   --background: #070710;
   --foreground: #ffffff;
+  --card-bg: #0e0e1c;
+  --card-border: rgba(255, 255, 255, 0.07);
+  --input-bg: #141426;
+  --text-primary: #ffffff;
+  --text-muted: #94a3b8;
 }
 
-[data-theme="light"] {
+[data-theme="light"], html.light {
   --background: #f8fafc;
   --foreground: #0f172a;
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --input-bg: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-muted: #64748b;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: 'Inter', sans-serif;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-[data-theme="light"] .bg-\[\#070710\] {
-  background-color: #f1f5f9 !important;
-}
-
-[data-theme="light"] .bg-\[\#0e0e1c\] {
-  background-color: #ffffff !important;
-  border-color: #e2e8f0 !important;
-  color: #0f172a !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-}
-
-[data-theme="light"] .bg-\[\#141426\] {
+/* Light Theme Overrides */
+[data-theme="light"], html.light {
   background-color: #f8fafc !important;
   color: #0f172a !important;
 }
 
-[data-theme="light"] .text-white {
+[data-theme="light"] .bg-\[\#070710\],
+[data-theme="light"] .bg-\[\#050505\] {
+  background-color: #f8fafc !important;
+}
+
+[data-theme="light"] .bg-\[\#0e0e1c\],
+[data-theme="light"] .bg-\[\#0e0e1c\]\/80 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .bg-\[\#141426\],
+[data-theme="light"] .bg-black\/40,
+[data-theme="light"] .bg-black\/50,
+[data-theme="light"] .bg-black\/60 {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] .text-white,
+[data-theme="light"] .text-slate-100 {
   color: #0f172a !important;
 }
 
 [data-theme="light"] .text-white\/40,
 [data-theme="light"] .text-white\/50,
-[data-theme="light"] .text-gray-400 {
+[data-theme="light"] .text-white\/60,
+[data-theme="light"] .text-white\/70,
+[data-theme="light"] .text-gray-400,
+[data-theme="light"] .text-gray-500 {
   color: #64748b !important;
 }
 
+[data-theme="light"] .text-gray-300 {
+  color: #334155 !important;
+}
+
 [data-theme="light"] .border-white\/\[0\.07\],
-[data-theme="light"] .border-white\/10 {
+[data-theme="light"] .border-white\/\[0\.02\],
+[data-theme="light"] .border-white\/\[0\.05\],
+[data-theme="light"] .border-white\/10,
+[data-theme="light"] .border-white\/20,
+[data-theme="light"] .divide-gray-800,
+[data-theme="light"] .divide-white\/\[0\.07\] {
   border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] table thead {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+[data-theme="light"] table tr:hover {
+  background-color: #f8fafc !important;
 }
 
 /* Custom Scrollbar */
