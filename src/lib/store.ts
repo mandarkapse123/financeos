@@ -318,6 +318,23 @@ class Store {
     this.save();
   }
 
+  // Sync Investments from payload or sheet across devices
+  syncInvestments(invList: AppState['investments']) {
+    if (!Array.isArray(invList) || invList.length === 0) return;
+    const accountId = this.state.currentAccountId;
+
+    invList.forEach(inv => {
+      const idx = this.state.investments.findIndex(i => i.id === inv.id || (i.name.toLowerCase() === inv.name.toLowerCase() && (i.isin || '') === (inv.isin || '')));
+      if (idx >= 0) {
+        this.state.investments[idx] = { ...this.state.investments[idx], ...inv, accountId };
+      } else {
+        this.state.investments.push({ ...inv, accountId });
+      }
+    });
+
+    this.save();
+  }
+
   // Expenses & Daily Unified Deletion
   getExpenses() { return this.getForAccount(this.state.expenses); }
   upsertExpense(item: AppState['expenses'][0]) { this.state.expenses = this.upsert(this.state.expenses, item); this.save(); }

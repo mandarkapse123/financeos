@@ -197,6 +197,22 @@ export default function SettingsPage() {
     }
   };
 
+  const handleCopyIpadSyncLink = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const jsonStr = store.exportJSON();
+      const encodedData = encodeURIComponent(btoa(jsonStr));
+      const endpoint = encodeURIComponent(state.settings.endpoint || '');
+      const syncUrl = `${window.location.origin}/settings?endpoint=${endpoint}&importData=${encodedData}`;
+
+      navigator.clipboard.writeText(syncUrl);
+      showToast('📋 iPad Sync Link copied! Open/AirDrop this link on your iPad to sync all data instantly.', 'success');
+    } catch (e) {
+      console.error(e);
+      showToast('Exported backup data ready in Settings', 'info');
+    }
+  };
+
   const SectionHeader = ({ icon: Icon, title }: { icon: any, title: string }) => (
     <div className="bg-[#141426] p-3 text-[10px] font-bold uppercase tracking-wider text-white/50 flex items-center gap-2">
       <Icon size={14} />
@@ -323,6 +339,28 @@ export default function SettingsPage() {
             </button>
             <button onClick={handleTestSync} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white rounded-xl p-3 text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(124,58,237,0.3)]">
               <RefreshCw size={16} /> Test Sync / Fetch Data
+            </button>
+          </div>
+        </div>
+
+        {/* iPad & Multi-Device 1-Click Sync Card */}
+        <div className="bg-gradient-to-r from-purple-950/40 via-[#0e0e1c] to-emerald-950/40 border border-purple-500/30 rounded-2xl p-5 overflow-hidden shadow-xl space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">📱</span>
+            <div>
+              <h3 className="text-base font-bold text-purple-300">1-Click iPad & Multi-Device Sync</h3>
+              <p className="text-xs text-gray-400">Transfer all your Investments, Dashboard stats & setup to your iPad instantly</p>
+            </div>
+          </div>
+          <p className="text-xs text-gray-300">
+            Because browser security keeps memory local, click below to generate your unique 1-click sync link. AirDrop or open this link on your iPad browser to instantly mirror all PC data!
+          </p>
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={handleCopyIpadSyncLink}
+              className="flex-1 bg-gradient-to-r from-purple-600 to-emerald-600 hover:from-purple-500 hover:to-emerald-500 text-white rounded-xl p-3 text-xs font-bold transition-all shadow-lg flex items-center justify-center gap-2"
+            >
+              <span>📋</span> Copy 1-Click iPad Sync Link
             </button>
           </div>
         </div>
