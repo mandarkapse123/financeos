@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store-context';
 import { formatCurrency, formatFull, formatDate } from '@/lib/utils';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Legend, Tooltip } from 'chart.js';
@@ -24,8 +24,13 @@ interface ParsedGrowwHolding {
 }
 
 export default function InvestmentsPage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const { state, refresh, store } = useStore();
   const investments = store.getInvestments();
+
+  if (!mounted) return null;
   const currency = state.settings.currency;
   const [loading, setLoading] = useState(false);
 

@@ -93,7 +93,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen?: bo
         <nav className="flex-1 overflow-y-auto px-4 py-2 space-y-6">
           {navSections.map((section, idx) => (
             <div key={idx}>
-              <h3 className="text-white/30 text-[10px] font-bold mb-3 px-3 uppercase tracking-wider">{section.title}</h3>
+              <h3 className="sidebar-section-title text-[10px] font-extrabold mb-3 px-3 uppercase tracking-wider">{section.title}</h3>
               <div className="space-y-1">
                 {section.items.map((item, itemIdx) => {
                   const isActive = pathname === item.href;

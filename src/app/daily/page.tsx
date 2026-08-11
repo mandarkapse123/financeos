@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store-context';
 import { formatCurrency, formatDate, CATEGORY_ICONS, CATEGORY_COLORS } from '@/lib/utils';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip } from 'chart.js';
@@ -10,6 +10,9 @@ import { generateId } from '@/lib/store';
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
 export default function DailyPage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const { state, store, refresh } = useStore();
   const rawDaily = store.getDaily();
   const rawExpenses = store.getExpenses();
@@ -17,6 +20,8 @@ export default function DailyPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<DailyExpense | null>(null);
+
+  if (!mounted) return null;
 
   // Combine Daily entries + Expense entries so iPhone Shortcut & Expense logs are 100% synced!
   const combinedDaily = [

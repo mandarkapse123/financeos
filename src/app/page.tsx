@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store-context';
 import { formatCurrency, formatFull, sumAmounts, monthlyAmount, getGreeting, CATEGORY_COLORS, daysBetween, today } from '@/lib/utils';
 import {
@@ -11,11 +11,16 @@ import { Bar, Doughnut } from 'react-chartjs-2';
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Legend, Tooltip);
 
 export default function Dashboard() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const { state, store } = useStore();
   const income = store.getIncome();
   const expenses = store.getExpenses();
   const subs = store.getSubscriptions();
   const goals = store.getGoals();
+
+  if (!mounted) return null;
 
   const totalIncome = sumAmounts(income.map(i => ({ amount: monthlyAmount(i) })));
   const totalExpenses = sumAmounts(expenses);

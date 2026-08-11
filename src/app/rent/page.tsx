@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useStore } from '../../lib/store-context';
 import { generateId } from '../../lib/store';
 import { RENT_EXPENSE_CATEGORIES } from '../../lib/types';
@@ -21,8 +21,13 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointEleme
 type Tab = 'overview' | 'ledger' | 'expenses' | 'receipts';
 
 export default function RentPortal() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const { state, store, refresh } = useStore();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+
+  if (!mounted) return null;
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
   const [toasts, setToasts] = useState<{ id: number, msg: string, type: string }[]>([]);
 

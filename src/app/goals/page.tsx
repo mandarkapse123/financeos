@@ -1,15 +1,20 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CHART_PALETTE, Goal } from '@/lib/types';
 import { generateId } from '@/lib/store';
 
 export default function GoalsPage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const { state, refresh, store } = useStore();
   const goals = store.getGoals();
   const currency = state.settings.currency;
+
+  if (!mounted) return null;
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [contribModalOpen, setContribModalOpen] = useState(false);

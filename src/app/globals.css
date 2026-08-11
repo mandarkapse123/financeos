@@ -28,7 +28,7 @@
   --card-border: #e2e8f0;
   --input-bg: #f1f5f9;
   --text-primary: #0f172a;
-  --text-muted: #64748b;
+  --text-muted: #475569;
 }
 
 body {
@@ -36,6 +36,21 @@ body {
   color: var(--foreground);
   font-family: 'Inter', sans-serif;
   transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Sidebar Section Title explicit styling */
+.sidebar-section-title {
+  color: #64748b;
+}
+
+[data-theme="dark"] .sidebar-section-title {
+  color: #64748b;
+}
+
+[data-theme="light"] .sidebar-section-title,
+html.light .sidebar-section-title {
+  color: #475569 !important;
+  font-weight: 800 !important;
 }
 
 /* Light Theme Overrides */
@@ -49,6 +64,7 @@ body {
   background-color: #f8fafc !important;
 }
 
+[data-theme="light"] aside,
 [data-theme="light"] .bg-\[\#0e0e1c\],
 [data-theme="light"] .bg-\[\#0e0e1c\]\/80 {
   background-color: #ffffff !important;
@@ -71,13 +87,15 @@ body {
   color: #0f172a !important;
 }
 
+[data-theme="light"] .text-white\/30,
 [data-theme="light"] .text-white\/40,
 [data-theme="light"] .text-white\/50,
 [data-theme="light"] .text-white\/60,
 [data-theme="light"] .text-white\/70,
 [data-theme="light"] .text-gray-400,
 [data-theme="light"] .text-gray-500 {
-  color: #64748b !important;
+  color: #475569 !important;
+  font-weight: 500;
 }
 
 [data-theme="light"] .text-gray-300 {

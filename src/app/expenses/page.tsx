@@ -1,17 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store-context';
 import { formatCurrency, sumAmounts, CATEGORY_COLORS, CATEGORY_ICONS, EXPENSE_CATEGORIES, formatDate } from '@/lib/utils';
 import { ExpenseEntry, DailyExpense } from '@/lib/types';
 import { generateId } from '@/lib/store';
 
 export default function ExpensesPage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const { state, store, refresh } = useStore();
   const expenses = store.getExpenses();
   const daily = store.getDaily();
   const currency = state.settings.currency;
   const budgets = state.settings.budgets || {};
+
+  if (!mounted) return null;
 
   const [modalOpen, setModalOpen] = useState(false);
   const [budgetModalOpen, setBudgetModalOpen] = useState(false);
