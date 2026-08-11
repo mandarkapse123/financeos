@@ -151,9 +151,36 @@ class Store {
     this.save();
   }
 
-  // Settings
+  // Settings & Custom Categories
   updateSettings(partial: Partial<AppState['settings']>) {
     this.state.settings = { ...this.state.settings, ...partial };
+    this.save();
+  }
+
+  addCustomCategory(category: string) {
+    const trimmed = category.trim();
+    if (!trimmed) return;
+    const existing = this.state.settings.customCategories || [];
+    if (!existing.includes(trimmed)) {
+      this.state.settings.customCategories = [...existing, trimmed];
+      this.save();
+    }
+  }
+
+  toggleTheme() {
+    const current = this.state.settings.theme || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    this.state.settings.theme = next;
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', next);
+      if (next === 'light') {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+      } else {
+        document.documentElement.classList.remove('light');
+        document.documentElement.classList.add('dark');
+      }
+    }
     this.save();
   }
 

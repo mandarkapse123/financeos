@@ -21,7 +21,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointEleme
 type Tab = 'overview' | 'ledger' | 'expenses' | 'receipts';
 
 export default function RentPortal() {
-  const { state, store } = useStore();
+  const { state, store, refresh } = useStore();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
   const [toasts, setToasts] = useState<{ id: number, msg: string, type: string }[]>([]);
@@ -285,6 +285,52 @@ export default function RentPortal() {
 
         {activeTab === 'ledger' && (
           <div className="space-y-6">
+            {/* 1-CLICK QUICK SUGGESTION FOR MONTHLY REPEATING RENT */}
+            {rentEntries.length > 0 && (() => {
+              const last = rentEntries[rentEntries.length - 1];
+              const curMonthLabel = new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+              const alreadyLogged = rentEntries.some(e => e.period === curMonthLabel);
+              return (
+                <div className="bg-emerald-950/40 border border-emerald-500/30 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">⚡</span>
+                    <div>
+                      <h4 className="font-bold text-emerald-300 text-sm">
+                        Quick Suggestion: Repeat Monthly Rent ({curMonthLabel})
+                      </h4>
+                      <p className="text-xs text-emerald-200/60 mt-0.5">
+                        Last entry: {formatCurrency(Number(last.amount), currency)} via {last.mode || 'UPI'} ({last.period})
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const todayStr = new Date().toISOString().split('T')[0];
+                      store.upsertRentEntry({
+                        id: generateId(),
+                        accountId: state.currentAccountId,
+                        date: todayStr,
+                        amount: Number(last.amount),
+                        period: curMonthLabel,
+                        mode: last.mode || 'UPI',
+                        notes: `1-Click Quick Add for ${curMonthLabel}`,
+                      });
+                      refresh();
+                      showToast(`Logged ${curMonthLabel} rent: ${formatCurrency(Number(last.amount), currency)}!`);
+                    }}
+                    disabled={alreadyLogged}
+                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 ${
+                      alreadyLogged
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed'
+                        : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-lg shadow-emerald-500/20 hover:scale-105'
+                    }`}
+                  >
+                    {alreadyLogged ? '✓ Logged for ' + curMonthLabel : '⚡ 1-Click Log ' + curMonthLabel + ' Rent'}
+                  </button>
+                </div>
+              );
+            })()}
+
             <form onSubmit={addRent} className="bg-[#0e0e1c] border border-white/[0.07] p-5 rounded-2xl grid grid-cols-1 sm:grid-cols-5 gap-4 items-end">
               <div>
                 <label className="text-xs text-white/50 mb-1 block">Date</label>

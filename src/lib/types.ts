@@ -37,6 +37,7 @@ export interface ExpenseEntry {
   category: string;
   date: string;
   note: string;
+  kmReading?: number;
 }
 
 export interface Subscription {
@@ -63,6 +64,13 @@ export interface Investment {
   note: string;
   tickerSymbol?: string;
   lastPriceUpdate?: string;
+  // Groww & CAS fields
+  isin?: string;
+  quantity?: number;
+  avgBuyPrice?: number;
+  closingPrice?: number;
+  clientCode?: string;
+  unrealisedPnl?: number;
 }
 
 export interface Goal {
@@ -93,6 +101,7 @@ export interface DailyExpense {
   paymentMethod: string;
   date: string;
   note: string;
+  kmReading?: number;
 }
 
 export interface RentEntry {
@@ -133,6 +142,8 @@ export interface AppSettings {
   currency: string;
   endpoint: string;
   budgets: Budget;
+  customCategories?: string[];
+  theme?: 'dark' | 'light';
 }
 
 export interface AppState {
@@ -152,37 +163,37 @@ export interface AppState {
 
 // Constants
 export const EXPENSE_CATEGORIES = [
-  'Food & Dining', 'Medical', 'Clothing & Shopping', 'Health Supplements',
+  'Petrol', 'Food & Dining', 'Medical', 'Clothing & Shopping', 'Health Supplements',
   'Transport', 'Housing / Rent', 'Entertainment', 'Education',
   'Utilities', 'Personal Care', 'Other'
-] as const;
+] as string[];
 
 export const INCOME_CATEGORIES = [
   'Salary', 'Freelance', 'Business', 'Dividends', 'Rental Income',
   'Interest', 'Bonus', 'Gift', 'Other'
-] as const;
+] as string[];
 
 export const INVESTMENT_TYPES = [
   'Stocks / Equity', 'Mutual Funds', 'Crypto', 'Fixed Deposit',
   'Gold', 'Real Estate', 'PPF / EPF', 'NPS', 'Bonds', 'Other'
-] as const;
+] as string[];
 
 export const PAYMENT_METHODS = [
   'UPI', 'Cash', 'Debit Card', 'Credit Card', 'Net Banking', 'Other'
-] as const;
+] as string[];
 
 export const SUBSCRIPTION_CATEGORIES = [
   'Streaming', 'Music', 'Cloud Storage', 'Productivity',
   'News', 'Gaming', 'Fitness', 'Other'
-] as const;
+] as string[];
 
 export const RENT_EXPENSE_CATEGORIES = [
   'Plumbing', 'Electrical', 'Painting', 'Carpentry',
   'Pest Control', 'Cleaning', 'Other'
-] as const;
+] as string[];
 
 export const CATEGORY_ICONS: Record<string, string> = {
-  'Food & Dining': '🍔', 'Medical': '🏥', 'Clothing & Shopping': '👗',
+  'Petrol': '⛽', 'Food & Dining': '🍔', 'Medical': '🏥', 'Clothing & Shopping': '👗',
   'Health Supplements': '💊', 'Transport': '🚗', 'Housing / Rent': '🏠',
   'Entertainment': '🎬', 'Education': '📚', 'Utilities': '💡',
   'Personal Care': '💆', 'Other': '📦', 'Salary': '💼',
@@ -196,7 +207,7 @@ export const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  'Food & Dining': '#f59e0b', 'Medical': '#ef4444', 'Clothing & Shopping': '#ec4899',
+  'Petrol': '#ef4444', 'Food & Dining': '#f59e0b', 'Medical': '#ef4444', 'Clothing & Shopping': '#ec4899',
   'Health Supplements': '#84cc16', 'Transport': '#a855f7', 'Housing / Rent': '#14b8a6',
   'Entertainment': '#3b82f6', 'Education': '#6366f1', 'Utilities': '#eab308',
   'Personal Care': '#10b981', 'Other': '#94a3b8',

@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useStore } from '@/lib/store-context';
-import { formatCurrency, formatFull, sumAmounts, monthlyAmount, getGreeting, CATEGORY_COLORS } from '@/lib/utils';
+import { formatCurrency, formatFull, sumAmounts, monthlyAmount, getGreeting, CATEGORY_COLORS, daysBetween, today } from '@/lib/utils';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Legend, Tooltip
 } from 'chart.js';
@@ -21,6 +21,14 @@ export default function Dashboard() {
   const totalExpenses = sumAmounts(expenses);
   const totalSubs = sumAmounts(subs.map(s => ({ amount: monthlyAmount(s) })));
   const netWorth = totalIncome - totalExpenses - totalSubs;
+
+  // Upcoming subscriptions within 2 days (or overdue)
+  const todayStr = today();
+  const upcoming2Days = subs.filter(s => {
+    if (!s.renewalDate) return false;
+    const d = daysBetween(todayStr, s.renewalDate);
+    return d >= 0 && d <= 2;
+  });
 
   const barData = {
     labels: ['Income', 'Expenses', 'Subscriptions'],
@@ -61,6 +69,31 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 text-white min-h-screen">
+      {/* Upcoming Subscription Renewal Alert (2 Days Prior) */}
+      {upcoming2Days.length > 0 && (
+        <div className="bg-amber-500/15 border border-amber-500/40 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl flex-shrink-0">
+              ⚠️
+            </div>
+            <div>
+              <h3 className="font-bold text-amber-300 text-sm sm:text-base">
+                Upcoming Subscription Renewal ({upcoming2Days.length} due in ≤ 2 days)
+              </h3>
+              <p className="text-xs text-amber-200/70">
+                {upcoming2Days.map(s => `${s.icon || '📱'} ${s.name} (${formatCurrency(s.amount, state.settings.currency)}) on ${s.renewalDate}`).join(' • ')}
+              </p>
+            </div>
+          </div>
+          <a
+            href="/subscriptions"
+            className="px-4 py-1.5 text-xs font-semibold bg-amber-500 text-black hover:bg-amber-400 rounded-xl transition-colors whitespace-nowrap self-end sm:self-center"
+          >
+            Manage Subs
+          </a>
+        </div>
+      )}
+
       {/* Welcome Banner */}
       <div className="flex justify-between items-center bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-6">
         <div>
@@ -128,7 +161,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-        
+
         <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
           <h3 className="text-lg font-semibold mb-4">Recent Expenses</h3>
           {expenses.length === 0 ? (
