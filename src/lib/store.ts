@@ -144,6 +144,44 @@ class Store {
       // storage full or unavailable
     }
     this.notify();
+    this.pushToCloud();
+  }
+
+  pushToCloud() {
+    if (typeof window === 'undefined') return;
+    const endpoint = this.state.settings.endpoint;
+    if (!endpoint) return;
+
+    try {
+      fetch(endpoint, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'syncFullState', fullState: this.state })
+      }).catch(() => {});
+    } catch {
+      // silent catch
+    }
+  }
+
+  importFullState(remoteState: Partial<AppState>) {
+    if (!remoteState || typeof remoteState !== 'object') return;
+    try {
+      if (Array.isArray(remoteState.investments) && remoteState.investments.length > 0) {
+        this.syncInvestments(remoteState.investments);
+      }
+      if (Array.isArray(remoteState.income) && remoteState.income.length > 0) {
+        this.state.income = remoteState.income;
+      }
+      if (Array.isArray(remoteState.goals) && remoteState.goals.length > 0) {
+        this.state.goals = remoteState.goals;
+      }
+      if (Array.isArray(remoteState.subscriptions) && remoteState.subscriptions.length > 0) {
+        this.state.subscriptions = remoteState.subscriptions;
+      }
+    } catch {
+      // ignore
+    }
   }
 
   private notify() {

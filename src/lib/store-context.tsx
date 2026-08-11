@@ -31,6 +31,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       try {
         const res = await fetch(endpoint, { method: 'GET', mode: 'cors' });
         const json = await res.json();
+        // 1. Full Cloud Backup Sync across all devices (Investments, Goals, Income)
+        if (json && json.fullState) {
+          store.importFullState(json.fullState);
+        }
+
+        // 2. Sync Google Sheet rows (Daily Logs & Expenses)
         let items: any[] = [];
         if (Array.isArray(json)) items = json;
         else if (json && Array.isArray(json.rows)) items = json.rows;

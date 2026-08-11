@@ -436,6 +436,18 @@ function processRequest(e) {
       ss = SpreadsheetApp.getActiveSpreadsheet();
     }
     let sh = ss.getSheetByName('Sheet1') || ss.getSheets()[0];
+    const props = PropertiesService.getScriptProperties();
+
+    if (e && e.postData && e.postData.contents) {
+      try {
+        const payload = JSON.parse(e.postData.contents);
+        if (payload.action === 'syncFullState' && payload.fullState) {
+          props.setProperty('FINANCEOS_FULL_STATE', JSON.stringify(payload.fullState));
+          return ContentService.createTextOutput(JSON.stringify({ status: 'success', message: 'Full state synced to cloud' })).setMimeType(ContentService.MimeType.JSON);
+        }
+      } catch (postErr) {}
+    }
+
     const p = (e && e.parameter) ? e.parameter : {};
     const amount = p.amount || p.amt;
 
@@ -462,7 +474,11 @@ function processRequest(e) {
         });
       }
     }
-    return ContentService.createTextOutput(JSON.stringify(rows)).setMimeType(ContentService.MimeType.JSON);
+
+    const fullStateRaw = props.getProperty('FINANCEOS_FULL_STATE');
+    const fullState = fullStateRaw ? JSON.parse(fullStateRaw) : null;
+
+    return ContentService.createTextOutput(JSON.stringify({ rows: rows, fullState: fullState })).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ status: 'error', error: err.toString() })).setMimeType(ContentService.MimeType.JSON);
   }
