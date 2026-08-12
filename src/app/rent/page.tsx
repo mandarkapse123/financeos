@@ -7,7 +7,7 @@ import { RENT_EXPENSE_CATEGORIES } from '../../lib/types';
 import type { RentEntry, RentExpense, RentReceipt } from '../../lib/types';
 import { formatCurrency, formatFull, formatDate, downloadFile, cn } from '../../lib/utils';
 import {
-  Building2, Receipt, ArrowUpRight, ArrowDownRight, Wallet, Plus, Trash2,
+  Building2, Receipt, ArrowUpRight, ArrowDownRight, Wallet, Plus, Trash2, Edit2, Pencil,
   Download, Upload, X, Image as ImageIcon, BarChart3, LineChart, FileText, Activity
 } from 'lucide-react';
 import {
@@ -45,6 +45,47 @@ export default function RentPortal() {
   const [expPaidBy, setExpPaidBy] = useState('');
 
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
+
+  // Edit modals for rent entries and expenses
+  const [editingRentEntry, setEditingRentEntry] = useState<RentEntry | null>(null);
+  const [editingRentExpense, setEditingRentExpense] = useState<RentExpense | null>(null);
+
+  const handleSaveRentEntry = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const item: RentEntry = {
+      id: editingRentEntry?.id || generateId(),
+      accountId: state.currentAccountId,
+      date: formData.get('date') as string,
+      bankAccount: formData.get('bankAccount') as string || 'HDFC Bank',
+      amount: parseFloat(formData.get('amount') as string) || 0,
+      period: editingRentEntry?.period || '',
+      mode: formData.get('mode') as string || '',
+      notes: formData.get('notes') as string || '',
+    };
+    store.upsertRentEntry(item);
+    refresh();
+    setEditingRentEntry(null);
+    showToast('Rent entry updated successfully!', 'success');
+  };
+
+  const handleSaveRentExpense = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const item: RentExpense = {
+      id: editingRentExpense?.id || generateId(),
+      accountId: state.currentAccountId,
+      date: formData.get('date') as string,
+      description: formData.get('description') as string,
+      amount: parseFloat(formData.get('amount') as string) || 0,
+      category: formData.get('category') as string,
+      paidBy: editingRentExpense?.paidBy || 'Self',
+    };
+    store.upsertRentExpense(item);
+    refresh();
+    setEditingRentExpense(null);
+    showToast('Rent expense updated successfully!', 'success');
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rentImportModalOpen, setRentImportModalOpen] = useState(false);
@@ -464,7 +505,7 @@ export default function RentPortal() {
                 <select value={rentBankAccount} onChange={e=>setRentBankAccount(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg p-2.5 text-sm">
                   <option value="HDFC Bank">🏦 HDFC Bank</option>
                   <option value="ICICI Bank">🏦 ICICI Bank</option>
-                  <option value="Personal">🏦 Personal Account</option>
+                  <option value="SBI Bank">🏦 SBI Bank</option>
                 </select>
               </div>
               <div>
@@ -509,7 +550,10 @@ export default function RentPortal() {
                       <td className="px-6 py-4">{e.mode || '-'}</td>
                       <td className="px-6 py-4 text-white/70">{e.notes || '-'}</td>
                       <td className="px-6 py-4 text-right">
-                        <button onClick={() => { store.deleteRentEntry(e.id); refresh(); showToast('Deleted entry', 'error'); }} className="text-white/30 hover:text-rose-400"><Trash2 size={16}/></button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => setEditingRentEntry(e)} className="text-white/50 hover:text-purple-300 p-1 transition-colors" title="Edit rent entry"><Pencil size={16}/></button>
+                          <button onClick={() => { store.deleteRentEntry(e.id); refresh(); showToast('Deleted entry', 'error'); }} className="text-white/30 hover:text-rose-400 p-1 transition-colors" title="Delete entry"><Trash2 size={16}/></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -559,7 +603,10 @@ export default function RentPortal() {
                       <td className="px-6 py-4"><span className="px-2 py-1 bg-white/5 rounded text-xs">{e.category}</span></td>
                       <td className="px-6 py-4 font-medium text-rose-400">-{formatCurrency(Number(e.amount), currency)}</td>
                       <td className="px-6 py-4 text-right">
-                        <button onClick={() => { store.deleteRentExpense(e.id); showToast('Deleted expense', 'error'); }} className="text-white/30 hover:text-rose-400"><Trash2 size={16}/></button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => setEditingRentExpense(e)} className="text-white/50 hover:text-purple-300 p-1 transition-colors" title="Edit rent expense"><Pencil size={16}/></button>
+                          <button onClick={() => { store.deleteRentExpense(e.id); showToast('Deleted expense', 'error'); }} className="text-white/30 hover:text-rose-400 p-1 transition-colors" title="Delete expense"><Trash2 size={16}/></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -613,6 +660,82 @@ export default function RentPortal() {
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setReceiptImage(null)}>
           <button className="absolute top-4 right-4 p-2 text-white/50 hover:text-white"><X size={24}/></button>
           <img src={receiptImage} alt="Receipt Full" className="max-w-full max-h-[90vh] object-contain rounded-lg" onClick={e => e.stopPropagation()} />
+        </div>
+      )}
+
+      {editingRentEntry && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center pb-2 border-b border-white/10">
+              <h3 className="font-bold text-white text-base">✏️ Edit Rent Ledger Entry</h3>
+              <button onClick={() => setEditingRentEntry(null)} className="text-gray-400 hover:text-white"><X size={20}/></button>
+            </div>
+            <form onSubmit={handleSaveRentEntry} className="space-y-3 text-sm">
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Date</label>
+                <input type="date" name="date" required defaultValue={editingRentEntry.date} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white" />
+              </div>
+              <div>
+                <label className="text-xs text-purple-300 font-semibold block mb-1">🏦 Bank Account</label>
+                <select name="bankAccount" defaultValue={editingRentEntry.bankAccount || 'HDFC Bank'} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-medium">
+                  <option value="HDFC Bank" className="bg-[#141426]">🏦 HDFC Bank</option>
+                  <option value="ICICI Bank" className="bg-[#141426]">🏦 ICICI Bank</option>
+                  <option value="SBI Bank" className="bg-[#141426]">🏦 SBI Bank</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Amount ({currency})</label>
+                <input type="number" step="any" name="amount" required defaultValue={editingRentEntry.amount} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-bold" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Payment Mode</label>
+                <input type="text" name="mode" defaultValue={editingRentEntry.mode || ''} placeholder="e.g. Bank Transfer, UPI" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Notes</label>
+                <input type="text" name="notes" defaultValue={editingRentEntry.notes || ''} placeholder="Optional notes" className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white" />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setEditingRentEntry(null)} className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-xl font-semibold bg-purple-600 hover:bg-purple-500 text-white text-xs shadow-lg">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingRentExpense && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center pb-2 border-b border-white/10">
+              <h3 className="font-bold text-white text-base">✏️ Edit Rent Expense</h3>
+              <button onClick={() => setEditingRentExpense(null)} className="text-gray-400 hover:text-white"><X size={20}/></button>
+            </div>
+            <form onSubmit={handleSaveRentExpense} className="space-y-3 text-sm">
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Date</label>
+                <input type="date" name="date" required defaultValue={editingRentExpense.date} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Description</label>
+                <input type="text" name="description" required defaultValue={editingRentExpense.description} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Category</label>
+                <select name="category" defaultValue={editingRentExpense.category} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white">
+                  {RENT_EXPENSE_CATEGORIES.map(c => <option key={c} value={c} className="bg-[#141426]">{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Amount ({currency})</label>
+                <input type="number" step="any" name="amount" required defaultValue={editingRentExpense.amount} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-bold" />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setEditingRentExpense(null)} className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-xl font-semibold bg-rose-600 hover:bg-rose-500 text-white text-xs shadow-lg">Save Expense</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

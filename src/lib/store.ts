@@ -9,6 +9,21 @@ function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 8);
 }
 
+function parseSafeDate(rawDate?: string): string {
+  if (!rawDate) return new Date().toISOString().split('T')[0];
+  const str = String(rawDate).trim();
+  const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) return isoMatch[1];
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split('T')[0];
+    }
+  } catch {}
+  return new Date().toISOString().split('T')[0];
+}
+
+
 const DEFAULT_ACCOUNT: Account = {
   id: 'default',
   userId: 'local',
@@ -104,14 +119,17 @@ class Store {
         const parsed = JSON.parse(stored);
         this.state = { ...getDefaultState(), ...parsed };
         
-        // Auto deduplicate existing stored items by date + amount + category
-        const cleanItems = <T extends { date?: string; amount: number; category?: string }>(arr: T[]): T[] => {
+        // Auto deduplicate existing stored items safely by id or fine signature (date + amount + category + note)
+        const cleanItems = <T extends { id?: string; date?: string; amount: number; category?: string; note?: string; name?: string }>(arr: T[]): T[] => {
           const seen = new Set<string>();
           return (arr || []).filter(item => {
+            if (!item) return false;
+            const id = item.id || '';
             const d = (item.date || '').substring(0, 10);
             const cat = (item.category || '').toLowerCase();
             const amt = item.amount;
-            const key = `${d}_${amt}_${cat}`;
+            const note = (item.note || item.name || '').toLowerCase().trim();
+            const key = id ? `id_${id}` : `sig_${d}_${amt}_${cat}_${note}`;
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
@@ -184,41 +202,79 @@ class Store {
     try {
       let updated = false;
 
-      if (Array.isArray(remoteState.investments) && remoteState.investments.length > 0) {
-        this.state.investments = remoteState.investments;
-        updated = true;
+      const mergeArray = <T extends { id?: string; date?: string; amount?: number; category?: string; note?: string; name?: string }>(local: T[], remote: T[]): { merged: T[]; changed: boolean } => {
+        if (!Array.isArray(remote) || remote.length === 0) return { merged: local || [], changed: false };
+        const localArr = local || [];
+        let changed = false;
+
+        const getItemKey = (item: T): string => {
+          const id = item.id || '';
+          const d = (item.date || '').substring(0, 10);
+          const amt = item.amount || 0;
+          const cat = (item.category || '').toLowerCase();
+          const note = (item.note || item.name || '').toLowerCase().trim();
+          return id ? `id_${id}` : `sig_${d}_${amt}_${cat}_${note}`;
+        };
+
+        const map = new Map<string, T>();
+        localArr.forEach(item => {
+          if (item) map.set(getItemKey(item), item);
+        });
+
+        remote.forEach(rItem => {
+          if (!rItem) return;
+          const key = getItemKey(rItem);
+          if (!map.has(key)) {
+            map.set(key, rItem);
+            changed = true;
+          } else {
+            const existing = map.get(key)!;
+            const merged = { ...existing, ...rItem };
+            if (JSON.stringify(existing) !== JSON.stringify(merged)) {
+              map.set(key, merged);
+              changed = true;
+            }
+          }
+        });
+
+        return { merged: Array.from(map.values()), changed };
+      };
+
+      if (Array.isArray(remoteState.investments)) {
+        const res = mergeArray(this.state.investments, remoteState.investments);
+        if (res.changed) { this.state.investments = res.merged as any; updated = true; }
       }
-      if (Array.isArray(remoteState.expenses) && remoteState.expenses.length > 0) {
-        this.state.expenses = remoteState.expenses;
-        updated = true;
+      if (Array.isArray(remoteState.expenses)) {
+        const res = mergeArray(this.state.expenses, remoteState.expenses);
+        if (res.changed) { this.state.expenses = res.merged as any; updated = true; }
       }
-      if (Array.isArray(remoteState.daily) && remoteState.daily.length > 0) {
-        this.state.daily = remoteState.daily;
-        updated = true;
+      if (Array.isArray(remoteState.daily)) {
+        const res = mergeArray(this.state.daily, remoteState.daily);
+        if (res.changed) { this.state.daily = res.merged as any; updated = true; }
       }
-      if (Array.isArray(remoteState.income) && remoteState.income.length > 0) {
-        this.state.income = remoteState.income;
-        updated = true;
+      if (Array.isArray(remoteState.income)) {
+        const res = mergeArray(this.state.income, remoteState.income);
+        if (res.changed) { this.state.income = res.merged as any; updated = true; }
       }
-      if (Array.isArray(remoteState.goals) && remoteState.goals.length > 0) {
-        this.state.goals = remoteState.goals;
-        updated = true;
+      if (Array.isArray(remoteState.goals)) {
+        const res = mergeArray(this.state.goals, remoteState.goals);
+        if (res.changed) { this.state.goals = res.merged as any; updated = true; }
       }
-      if (Array.isArray(remoteState.subscriptions) && remoteState.subscriptions.length > 0) {
-        this.state.subscriptions = remoteState.subscriptions;
-        updated = true;
+      if (Array.isArray(remoteState.subscriptions)) {
+        const res = mergeArray(this.state.subscriptions, remoteState.subscriptions);
+        if (res.changed) { this.state.subscriptions = res.merged as any; updated = true; }
       }
-      if (Array.isArray(remoteState.rentEntries) && remoteState.rentEntries.length > 0) {
-        this.state.rentEntries = remoteState.rentEntries;
-        updated = true;
+      if (Array.isArray(remoteState.rentEntries)) {
+        const res = mergeArray(this.state.rentEntries, remoteState.rentEntries);
+        if (res.changed) { this.state.rentEntries = res.merged as any; updated = true; }
       }
-      if (Array.isArray(remoteState.rentExpenses) && remoteState.rentExpenses.length > 0) {
-        this.state.rentExpenses = remoteState.rentExpenses;
-        updated = true;
+      if (Array.isArray(remoteState.rentExpenses)) {
+        const res = mergeArray(this.state.rentExpenses, remoteState.rentExpenses);
+        if (res.changed) { this.state.rentExpenses = res.merged as any; updated = true; }
       }
-      if (Array.isArray(remoteState.rentReceipts) && remoteState.rentReceipts.length > 0) {
-        this.state.rentReceipts = remoteState.rentReceipts;
-        updated = true;
+      if (Array.isArray(remoteState.rentReceipts)) {
+        const res = mergeArray(this.state.rentReceipts, remoteState.rentReceipts);
+        if (res.changed) { this.state.rentReceipts = res.merged as any; updated = true; }
       }
 
       if (updated) {
@@ -296,6 +352,14 @@ class Store {
     return newAcc;
   }
 
+  updateAccount(id: string, updates: Partial<Omit<Account, 'id' | 'createdAt'>>) {
+    const acc = this.state.accounts.find(a => a.id === id);
+    if (acc) {
+      Object.assign(acc, updates);
+      this.save();
+    }
+  }
+
   deleteAccount(id: string) {
     if (id === 'default') return;
     this.state.accounts = this.state.accounts.filter(a => a.id !== id);
@@ -341,25 +405,53 @@ class Store {
   deleteIncome(id: string) { this.state.income = this.remove(this.state.income, id); this.save(); }
 
   // Cleanly Sync Google Sheet items with STABLE MERGING to prevent re-creation loops
-  syncSheetItems(items: Array<{ id?: string; date: string; amount: number; category: string; note?: string; method?: string; kmReading?: number; bankAccount?: string }>) {
+  syncSheetItems(items: any[]) {
+    if (!Array.isArray(items) || items.length === 0) return;
     const accountId = this.state.currentAccountId;
     const deletedList = this.state.settings.deletedIds || [];
 
-    const existingDailySigs = new Set(this.state.daily.map(d => `${(d.date || '').substring(0, 10)}_${d.amount}_${(d.category || '').toLowerCase()}`));
-    const existingExpenseSigs = new Set(this.state.expenses.map(e => `${(e.date || '').substring(0, 10)}_${e.amount}_${(e.category || '').toLowerCase()}`));
+    const getSignature = (dStr: string, amt: number, cat: string, note: string) =>
+      `${dStr}_${amt}_${(cat || '').toLowerCase()}_${(note || '').toLowerCase().trim()}`;
+
+    const existingDailySigs = new Set(this.state.daily.map(d => getSignature((d.date || '').substring(0, 10), d.amount, d.category || '', d.note || '')));
+    const existingExpenseSigs = new Set(this.state.expenses.map(e => getSignature((e.date || '').substring(0, 10), e.amount, e.category || '', e.name || e.note || '')));
 
     let updated = false;
 
-    (items || []).forEach((item, index) => {
-      const amt = parseFloat(item.amount as any);
-      if (isNaN(amt) || amt <= 0) return;
+    items.forEach((item, index) => {
+      if (!item) return;
 
-      const dateStr = item.date ? new Date(item.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-      const cat = item.category || 'Expenses';
-      const note = item.note || '';
-      const kmVal = item.kmReading ? parseFloat(item.kmReading as any) : undefined;
-      const sheetId = `sheet_row_${index}_${dateStr}_${amt}_${cat}`;
-      const signature = `${dateStr}_${amt}_${cat.toLowerCase()}`;
+      let dateVal = '';
+      let amtVal = 0;
+      let catVal = 'Expenses';
+      let noteVal = '';
+      let methodVal = 'UPI';
+      let kmVal: number | undefined = undefined;
+
+      if (Array.isArray(item)) {
+        dateVal = item[0] ? String(item[0]) : '';
+        amtVal = parseFloat(item[1] as any);
+        catVal = item[2] ? String(item[2]) : 'Expenses';
+        noteVal = item[3] ? String(item[3]) : '';
+        methodVal = item[4] ? String(item[4]) : 'UPI';
+        if (item[5]) kmVal = parseFloat(item[5] as any);
+      } else if (typeof item === 'object') {
+        dateVal = (item.date || '') as string;
+        amtVal = parseFloat((item.amount ?? item.amt) as any);
+        catVal = (item.category ?? item.cat ?? 'Expenses') as string;
+        noteVal = (item.note ?? item.description ?? '') as string;
+        methodVal = (item.method ?? item.paymentMethod ?? 'UPI') as string;
+        const rawKm = item.kmReading ?? item.km ?? item.odometer;
+        if (rawKm) kmVal = parseFloat(rawKm as any);
+      }
+
+      if (isNaN(amtVal) || amtVal <= 0) return;
+
+      const dateStr = parseSafeDate(dateVal);
+      const cat = catVal || 'Expenses';
+      const note = noteVal || '';
+      const sheetId = `sheet_row_${index}_${dateStr}_${amtVal}_${cat}`;
+      const signature = getSignature(dateStr, amtVal, cat, note);
 
       // Skip if explicitly deleted by user in FinanceOS
       if (deletedList.includes(sheetId) || deletedList.includes(signature)) {
@@ -370,10 +462,10 @@ class Store {
         this.state.daily.push({
           id: sheetId,
           accountId,
-          bankAccount: item.bankAccount || 'HDFC Bank',
-          amount: amt,
+          bankAccount: 'HDFC Bank',
+          amount: amtVal,
           category: cat,
-          paymentMethod: item.method || 'UPI',
+          paymentMethod: methodVal,
           date: dateStr,
           note: note,
           kmReading: kmVal,
@@ -386,9 +478,9 @@ class Store {
         this.state.expenses.push({
           id: sheetId,
           accountId,
-          bankAccount: item.bankAccount || 'HDFC Bank',
+          bankAccount: 'HDFC Bank',
           name: cat === 'Petrol' ? 'Petrol Fill' : (note || cat),
-          amount: amt,
+          amount: amtVal,
           category: cat,
           date: dateStr,
           note: note,
@@ -400,7 +492,7 @@ class Store {
     });
 
     if (updated) {
-      this.saveLocalStorageOnly();
+      this.save();
     }
   }
 
@@ -428,10 +520,12 @@ class Store {
     const target = this.state.expenses.find(e => e.id === id) || this.state.daily.find(d => d.id === id);
     if (target) {
       const dateStr = (target.date || '').substring(0, 10);
-      const signature = `${dateStr}_${target.amount}_${(target.category || '').toLowerCase()}`;
+      const catLower = (target.category || '').toLowerCase();
+      const noteLower = (target.note || ('name' in target ? (target as any).name : '') || '').toLowerCase().trim();
+      const signature = `${dateStr}_${target.amount}_${catLower}_${noteLower}`;
       const deletedList = this.state.settings.deletedIds || [];
       if (!deletedList.includes(id)) deletedList.push(id);
-      if (!deletedList.includes(signature)) deletedList.push(signature);
+      if (noteLower && !deletedList.includes(signature)) deletedList.push(signature);
       this.state.settings.deletedIds = deletedList;
     }
 

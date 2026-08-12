@@ -5,7 +5,7 @@ import { useStore } from '../../lib/store-context';
 import { generateId } from '../../lib/store';
 import { downloadFile } from '../../lib/utils';
 import {
-  User, Wallet, Smartphone, Database, Trash2, Plus, Upload, Download, RefreshCw, X, ShieldAlert, FileJson
+  User, Wallet, Smartphone, Database, Trash2, Plus, Upload, Download, RefreshCw, X, ShieldAlert, FileJson, Pencil, Check
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -30,6 +30,22 @@ export default function SettingsPage() {
   // Accounts
   const [newAccName, setNewAccName] = useState('');
   const [newAccType, setNewAccType] = useState('personal');
+
+  const [editingAccId, setEditingAccId] = useState<string | null>(null);
+  const [editingAccName, setEditingAccName] = useState<string>('');
+
+  const handleStartEditAccount = (id: string, currentName: string) => {
+    setEditingAccId(id);
+    setEditingAccName(currentName);
+  };
+
+  const handleSaveAccountName = (id: string) => {
+    if (!editingAccName.trim()) return;
+    store.updateAccount(id, { name: editingAccName.trim() });
+    refresh();
+    setEditingAccId(null);
+    showToast('Account name updated successfully!', 'success');
+  };
 
   // Shortcuts Modal
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
@@ -133,46 +149,9 @@ export default function SettingsPage() {
       }
 
       if (items.length > 0) {
-        let syncedCount = 0;
-        items.forEach(item => {
-          const amt = parseFloat(item.amount || item.amt);
-          if (!isNaN(amt) && amt > 0) {
-            const cat = item.category || item.cat || 'Expenses';
-            const km = item.kmReading || item.km || item.odometer;
-            const kmVal = km ? parseFloat(km) : undefined;
-            const entryId = item.id || generateId();
-            const entryDate = item.date ? new Date(item.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-            const entryNote = item.note || item.description || item.method || '';
-
-            // Upsert in Daily Log
-            store.upsertDaily({
-              id: entryId,
-              accountId: state.currentAccountId,
-              amount: amt,
-              category: cat,
-              paymentMethod: item.method || 'UPI',
-              date: entryDate,
-              note: entryNote,
-              kmReading: kmVal,
-            });
-
-            // Also upsert in Expenses table if category is Petrol or Expense
-            store.upsertExpense({
-              id: entryId,
-              accountId: state.currentAccountId,
-              name: cat === 'Petrol' ? 'Petrol Fill' : (entryNote || cat),
-              amount: amt,
-              category: cat,
-              date: entryDate,
-              note: entryNote,
-              kmReading: kmVal,
-            });
-
-            syncedCount++;
-          }
-        });
+        store.syncSheetItems(items);
         refresh();
-        showToast(`🎉 Successfully synced ${syncedCount} entries from Google Sheet!`, 'success');
+        showToast(`🎉 Successfully synced entries from Google Sheet!`, 'success');
       } else if (json && json.status === 'success') {
         showToast('Google Sheet Web App connected! (Paste new doGet code from Setup Guide for full data fetch)', 'info');
       } else {
@@ -277,17 +256,54 @@ export default function SettingsPage() {
           <SectionHeader icon={Wallet} title="Accounts / Personas" />
           {store.getAccounts().map(acc => (
             <div key={acc.id} className="p-4 border-b border-white/[0.07] flex items-center justify-between">
-              <div>
-                <p className="font-medium text-sm flex items-center gap-2">
-                  {acc.name}
-                  {acc.isDefault && <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] rounded-full uppercase font-bold">Default</span>}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5 capitalize">{acc.type} Account</p>
-              </div>
-              {!acc.isDefault && (
-                <button onClick={() => handleDeleteAccount(acc.id, acc.isDefault)} className="text-gray-400 hover:text-rose-400 p-2">
-                  <Trash2 size={16} />
-                </button>
+              {editingAccId === acc.id ? (
+                <div className="flex items-center gap-2 flex-1 mr-3">
+                  <input
+                    type="text"
+                    value={editingAccName}
+                    onChange={e => setEditingAccName(e.target.value)}
+                    className="bg-black/50 border border-purple-500/50 rounded-xl px-3 py-1.5 text-sm text-white focus:outline-none flex-1"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => handleSaveAccountName(acc.id)}
+                    className="bg-purple-600 hover:bg-purple-500 text-white p-1.5 rounded-lg transition-colors"
+                    title="Save name"
+                  >
+                    <Check size={16} />
+                  </button>
+                  <button
+                    onClick={() => setEditingAccId(null)}
+                    className="bg-white/10 hover:bg-white/20 text-white p-1.5 rounded-lg transition-colors"
+                    title="Cancel"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <p className="font-medium text-sm flex items-center gap-2">
+                    {acc.name}
+                    {acc.isDefault && <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] rounded-full uppercase font-bold">Default</span>}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5 capitalize">{acc.type} Account</p>
+                </div>
+              )}
+              {editingAccId !== acc.id && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleStartEditAccount(acc.id, acc.name)}
+                    className="text-gray-400 hover:text-purple-300 p-2 transition-colors"
+                    title="Edit account name"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  {!acc.isDefault && (
+                    <button onClick={() => handleDeleteAccount(acc.id, acc.isDefault)} className="text-gray-400 hover:text-rose-400 p-2 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           ))}

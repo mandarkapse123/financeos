@@ -16,6 +16,7 @@ export default function QuickAddModal({ isOpen, onClose }: QuickAddModalProps) {
   const { toast } = useToast();
 
   const [amount, setAmount] = useState('');
+  const [bankAccount, setBankAccount] = useState('HDFC Bank');
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0] || 'Petrol');
   const [paymentMethod, setPaymentMethod] = useState('UPI');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -38,6 +39,7 @@ export default function QuickAddModal({ isOpen, onClose }: QuickAddModalProps) {
     store.upsertDaily({
       id: Date.now().toString(36) + Math.random().toString(36).substr(2, 6),
       accountId: state.currentAccountId,
+      bankAccount,
       amount: numAmt,
       category,
       paymentMethod,
@@ -71,6 +73,21 @@ export default function QuickAddModal({ isOpen, onClose }: QuickAddModalProps) {
             onChange={(e) => setAmount(e.target.value)}
             className="w-full text-2xl font-bold text-center bg-black/40 border border-white/10 rounded-xl p-3 text-white placeholder-white/20 focus:outline-none focus:border-purple-500 transition-colors"
           />
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-purple-300 uppercase tracking-wider block mb-1">
+            🏦 Bank Account
+          </label>
+          <select
+            value={bankAccount}
+            onChange={(e) => setBankAccount(e.target.value)}
+            className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-purple-500 font-medium"
+          >
+            <option value="HDFC Bank" className="bg-[#141426]">🏦 HDFC Bank</option>
+            <option value="ICICI Bank" className="bg-[#141426]">🏦 ICICI Bank</option>
+            <option value="SBI Bank" className="bg-[#141426]">🏦 SBI Bank</option>
+          </select>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

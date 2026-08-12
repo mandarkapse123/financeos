@@ -23,7 +23,8 @@ export default function DailyPage() {
   if (!mounted) return null;
 
   // Single Master Source of Truth: Combine rawDaily + rawExpenses with STRICT UNIQUE DEDUPLICATION & DELETION BLACKLIST
-  const seenKeys = new Set<string>();
+  const seenIds = new Set<string>();
+  const seenSigs = new Set<string>();
   const rawCombined = [
     ...rawDaily,
     ...rawExpenses.map(e => ({
@@ -43,15 +44,19 @@ export default function DailyPage() {
     if (!d || !d.amount) return false;
     const dateStr = (d.date || '').substring(0, 10);
     const catLower = (d.category || '').toLowerCase();
-    const signature = `${dateStr}_${d.amount}_${catLower}`;
+    const noteLower = (d.note || '').toLowerCase().trim();
+    const signature = `${dateStr}_${d.amount}_${catLower}_${noteLower}`;
 
     // Skip if explicitly deleted by user in FinanceOS!
-    if (deletedList.includes(d.id) || deletedList.includes(signature)) {
+    if (deletedList.includes(d.id) || (noteLower && deletedList.includes(signature))) {
       return false;
     }
 
-    if (seenKeys.has(signature)) return false;
-    seenKeys.add(signature);
+    if (d.id && seenIds.has(d.id)) return false;
+    if (d.id) seenIds.add(d.id);
+
+    if (seenSigs.has(signature)) return false;
+    seenSigs.add(signature);
     return true;
   }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
@@ -292,9 +297,13 @@ export default function DailyPage() {
                   <tr key={d.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-4 text-gray-400 text-xs">{formatDate(d.date)}</td>
                     <td className="p-4">
-                      <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap">
+                      <button
+                        onClick={() => { setEditing(d); setModalOpen(true); }}
+                        className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Click to edit bank account"
+                      >
                         🏦 {d.bankAccount || 'HDFC Bank'}
-                      </span>
+                      </button>
                     </td>
                     <td className="p-4">
                       <span
@@ -322,13 +331,22 @@ export default function DailyPage() {
                       -{formatCurrency(d.amount, currency)}
                     </td>
                     <td className="p-4 text-right">
-                      <button
-                        onClick={() => handleDelete(d.id)}
-                        className="text-gray-400 hover:text-rose-400 p-1.5 transition-colors"
-                        title="Delete permanently"
-                      >
-                        🗑️
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => { setEditing(d); setModalOpen(true); }}
+                          className="text-gray-400 hover:text-purple-300 p-1.5 transition-colors"
+                          title="Edit log & bank account"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDelete(d.id)}
+                          className="text-gray-400 hover:text-rose-400 p-1.5 transition-colors"
+                          title="Delete permanently"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -360,7 +378,7 @@ export default function DailyPage() {
                 >
                   <option value="HDFC Bank" className="bg-[#141426]">🏦 HDFC Bank</option>
                   <option value="ICICI Bank" className="bg-[#141426]">🏦 ICICI Bank</option>
-                  <option value="Personal Account" className="bg-[#141426]">🏦 Personal Account</option>
+                  <option value="SBI Bank" className="bg-[#141426]">🏦 SBI Bank</option>
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">

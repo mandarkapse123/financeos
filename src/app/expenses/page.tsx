@@ -471,7 +471,7 @@ export default function ExpensesPage() {
                 >
                   <option value="HDFC Bank" className="bg-[#141426]">🏦 HDFC Bank</option>
                   <option value="ICICI Bank" className="bg-[#141426]">🏦 ICICI Bank</option>
-                  <option value="Personal Account" className="bg-[#141426]">🏦 Personal Account</option>
+                  <option value="SBI Bank" className="bg-[#141426]">🏦 SBI Bank</option>
                 </select>
               </div>
 

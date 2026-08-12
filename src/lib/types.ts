@@ -186,6 +186,10 @@ export const PAYMENT_METHODS = [
   'UPI', 'Cash', 'Debit Card', 'Credit Card', 'Net Banking', 'Other'
 ] as string[];
 
+export const BANK_ACCOUNTS = [
+  'HDFC Bank', 'ICICI Bank', 'SBI Bank'
+] as string[];
+
 export const SUBSCRIPTION_CATEGORIES = [
   'Streaming', 'Music', 'Cloud Storage', 'Productivity',
   'News', 'Gaming', 'Fitness', 'Other'
