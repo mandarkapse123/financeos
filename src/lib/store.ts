@@ -588,6 +588,53 @@ class Store {
   }
   deleteRentReceipt(id: string) { this.state.rentReceipts = this.remove(this.state.rentReceipts, id); this.save(); }
 
+  cleanRentDuplicates(): { cleanedEntries: number; cleanedExpenses: number } {
+    let cleanedEntries = 0;
+    let cleanedExpenses = 0;
+
+    const seenEntries = new Set<string>();
+    const uniqueEntries = (this.state.rentEntries || []).filter(e => {
+      if (!e) return false;
+      const d = (e.date || '').substring(0, 10);
+      const amt = e.amount || 0;
+      const notes = (e.notes || e.period || '').toLowerCase().trim();
+      const key = e.id ? `id_${e.id}` : `sig_${d}_${amt}_${notes}`;
+      const sigKey = `sig_${d}_${amt}_${notes}`;
+      if (seenEntries.has(key) || (sigKey !== 'sig___' && seenEntries.has(sigKey))) {
+        cleanedEntries++;
+        return false;
+      }
+      if (e.id) seenEntries.add(key);
+      if (sigKey !== 'sig___') seenEntries.add(sigKey);
+      return true;
+    });
+
+    const seenExpenses = new Set<string>();
+    const uniqueExpenses = (this.state.rentExpenses || []).filter(e => {
+      if (!e) return false;
+      const d = (e.date || '').substring(0, 10);
+      const amt = e.amount || 0;
+      const desc = (e.description || e.category || '').toLowerCase().trim();
+      const key = e.id ? `id_${e.id}` : `sig_${d}_${amt}_${desc}`;
+      const sigKey = `sig_${d}_${amt}_${desc}`;
+      if (seenExpenses.has(key) || (sigKey !== 'sig___' && seenExpenses.has(sigKey))) {
+        cleanedExpenses++;
+        return false;
+      }
+      if (e.id) seenExpenses.add(key);
+      if (sigKey !== 'sig___') seenExpenses.add(sigKey);
+      return true;
+    });
+
+    if (cleanedEntries > 0 || cleanedExpenses > 0) {
+      this.state.rentEntries = uniqueEntries;
+      this.state.rentExpenses = uniqueExpenses;
+      this.save();
+    }
+
+    return { cleanedEntries, cleanedExpenses };
+  }
+
   // Export/Import
   exportJSON(): string {
     return JSON.stringify(this.state, null, 2);

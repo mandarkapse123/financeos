@@ -46,7 +46,8 @@ export default function RentPortal() {
 
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
 
-  // Edit modals for rent entries and expenses
+  // Date Sort Order & Editing state for Rent Entries & Rent Expenses
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [editingRentEntry, setEditingRentEntry] = useState<RentEntry | null>(null);
   const [editingRentExpense, setEditingRentExpense] = useState<RentExpense | null>(null);
 
@@ -190,6 +191,23 @@ export default function RentPortal() {
   const rentExpenses = store.getRentExpenses();
   const rentReceipts = store.getRentReceipts();
 
+  // Strict Date Sorting (Newest First / Oldest First)
+  const sortedRentEntries = useMemo(() => {
+    return [...rentEntries].sort((a, b) => {
+      const da = a.date || '';
+      const db = b.date || '';
+      return sortOrder === 'desc' ? db.localeCompare(da) : da.localeCompare(db);
+    });
+  }, [rentEntries, sortOrder]);
+
+  const sortedRentExpenses = useMemo(() => {
+    return [...rentExpenses].sort((a, b) => {
+      const da = a.date || '';
+      const db = b.date || '';
+      return sortOrder === 'desc' ? db.localeCompare(da) : da.localeCompare(db);
+    });
+  }, [rentExpenses, sortOrder]);
+
   const totalRent = rentEntries.reduce((sum, e) => sum + e.amount, 0);
   const totalExpenses = rentExpenses.reduce((sum, e) => sum + e.amount, 0);
   const netEarnings = totalRent - totalExpenses;
@@ -283,10 +301,166 @@ export default function RentPortal() {
     reader.readAsDataURL(file);
   };
 
+  const setQuickDate = (type: 'today' | 'yesterday' | '1st' | '15th', setter: (d: string) => void) => {
+    const now = new Date();
+    if (type === 'today') {
+      setter(now.toISOString().split('T')[0]);
+    } else if (type === 'yesterday') {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      setter(y.toISOString().split('T')[0]);
+    } else if (type === '1st') {
+      const d1 = new Date(now.getFullYear(), now.getMonth(), 1);
+      setter(d1.toISOString().split('T')[0]);
+    } else if (type === '15th') {
+      const d15 = new Date(now.getFullYear(), now.getMonth(), 15);
+      setter(d15.toISOString().split('T')[0]);
+    }
+  };
+
+  const handleCleanDuplicates = () => {
+    const result = store.cleanRentDuplicates();
+    refresh();
+    if (result.cleanedEntries > 0 || result.cleanedExpenses > 0) {
+      showToast(`🧹 Cleaned ${result.cleanedEntries + result.cleanedExpenses} duplicate entries!`, 'success');
+    } else {
+      showToast('✨ No duplicate entries found. Your ledger is clean!', 'info');
+    }
+  };
+
+  const exportPDF = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    const accountName = state.accounts.find(a => a.id === state.currentAccountId)?.name || 'Personal';
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Rent Statement - ${accountName}</title>
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #111; line-height: 1.5; }
+          .header { border-bottom: 2px solid #7c3aed; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+          .title { font-size: 24px; font-weight: bold; color: #5b21b6; }
+          .stats { display: flex; gap: 20px; margin-bottom: 24px; }
+          .stat-box { flex: 1; border: 1px solid #e5e7eb; padding: 12px; border-radius: 8px; background: #f9fafb; }
+          .stat-label { font-size: 11px; text-transform: uppercase; color: #6b7280; font-weight: bold; }
+          .stat-value { font-size: 18px; font-weight: bold; margin-top: 4px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px; }
+          th { background: #f3f4f6; text-align: left; padding: 10px; border-bottom: 1px solid #d1d5db; font-size: 11px; text-transform: uppercase; }
+          td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
+          .amount-in { color: #059669; font-weight: bold; }
+          .amount-out { color: #dc2626; font-weight: bold; }
+          .footer { text-align: center; margin-top: 40px; font-size: 11px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 16px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="title">🏠 Rent Portal Statement</div>
+            <div style="font-size: 13px; color: #4b5563; margin-top: 4px;">Account: ${accountName} &middot; Generated: ${new Date().toLocaleDateString('en-IN')}</div>
+          </div>
+          <div style="text-align: right; font-size: 12px; color: #666;">
+            <div>FinanceOS v2 Report</div>
+            <div>Total Records: ${sortedRentEntries.length + sortedRentExpenses.length}</div>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat-box">
+            <div class="stat-label">Total Rent Received</div>
+            <div class="stat-value amount-in">₹${totalRent.toLocaleString('en-IN')}</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Maintenance Expenses</div>
+            <div class="stat-value amount-out">₹${totalExpenses.toLocaleString('en-IN')}</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Net Income</div>
+            <div class="stat-value" style="color: ${netEarnings >= 0 ? '#059669' : '#dc2626'}">₹${netEarnings.toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+
+        <h3 style="font-size: 15px; margin-bottom: 10px; color: #374151;">Rent Ledger Payments</h3>
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Bank Account</th><th>Amount</th><th>Mode</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            ${sortedRentEntries.map(e => `
+              <tr>
+                <td>${formatDate(e.date)}</td>
+                <td>${e.bankAccount || 'HDFC Bank'}</td>
+                <td class="amount-in">+₹${Number(e.amount).toLocaleString('en-IN')}</td>
+                <td>${e.mode || '-'}</td>
+                <td>${e.notes || '-'}</td>
+              </tr>
+            `).join('')}
+            ${sortedRentEntries.length === 0 ? '<tr><td colspan="5">No rent entries logged</td></tr>' : ''}
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 15px; margin-bottom: 10px; color: #374151;">Property Maintenance Expenses</h3>
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr>
+          </thead>
+          <tbody>
+            ${sortedRentExpenses.map(e => `
+              <tr>
+                <td>${formatDate(e.date)}</td>
+                <td>${e.description}</td>
+                <td>${e.category}</td>
+                <td class="amount-out">-₹${Number(e.amount).toLocaleString('en-IN')}</td>
+              </tr>
+            `).join('')}
+            ${sortedRentExpenses.length === 0 ? '<tr><td colspan="4">No maintenance expenses logged</td></tr>' : ''}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          End of Rent Statement &middot; FinanceOS Automated PDF Generator
+        </div>
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  const exportExcel = () => {
+    const wb = XLSX.utils.book_new();
+
+    const ledgerData = sortedRentEntries.map(e => ({
+      Date: formatDate(e.date),
+      'Bank Account': e.bankAccount || 'HDFC Bank',
+      Amount: e.amount,
+      Mode: e.mode || '',
+      Notes: e.notes || '',
+    }));
+    const wsLedger = XLSX.utils.json_to_sheet(ledgerData);
+    XLSX.utils.book_append_sheet(wb, wsLedger, 'Rent Ledger');
+
+    const expenseData = sortedRentExpenses.map(e => ({
+      Date: formatDate(e.date),
+      Description: e.description,
+      Category: e.category,
+      Amount: e.amount,
+    }));
+    const wsExpense = XLSX.utils.json_to_sheet(expenseData);
+    XLSX.utils.book_append_sheet(wb, wsExpense, 'Rent Expenses');
+
+    XLSX.writeFile(wb, `Rent_Portal_Statement_${new Date().toISOString().split('T')[0]}.xlsx`);
+    showToast('Excel statement downloaded!', 'success');
+  };
+
   const exportCSV = () => {
     let csv = 'Type,Date,Amount,Category/Mode,Description/Notes\n';
-    rentEntries.forEach(r => csv += `Rent,${r.date},${r.amount},${r.mode},${r.notes}\n`);
-    rentExpenses.forEach(e => csv += `Expense,${e.date},${e.amount},${e.category},${e.description}\n`);
+    sortedRentEntries.forEach(r => csv += `Rent,${r.date},${r.amount},${r.mode},${r.notes}\n`);
+    sortedRentExpenses.forEach(e => csv += `Expense,${e.date},${e.amount},${e.category},${e.description}\n`);
     downloadFile('rent_export.csv', csv, 'text/csv');
     showToast('Exported CSV');
   };
@@ -301,10 +475,20 @@ export default function RentPortal() {
           <h1 className="text-3xl font-bold tracking-tight">Rent Portal</h1>
           <p className="text-white/50 text-sm mt-1">Manage rental income, maintenance, and receipts.</p>
         </div>
-        <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-medium transition-colors border border-white/10">
-          <Download size={16} />
-          Export CSV
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={handleCleanDuplicates} className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded-xl text-xs font-semibold transition-colors border border-purple-500/20" title="Remove repeated duplicate ledger rows">
+            🧹 Clean Duplicates
+          </button>
+          <button onClick={exportPDF} className="flex items-center gap-1.5 px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 rounded-xl text-xs font-semibold transition-colors border border-rose-500/20">
+            📄 Export PDF
+          </button>
+          <button onClick={exportExcel} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded-xl text-xs font-semibold transition-colors border border-emerald-500/20">
+            📊 Export Excel
+          </button>
+          <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-semibold transition-colors border border-white/10">
+            <Download size={14} /> Export CSV
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -497,8 +681,16 @@ export default function RentPortal() {
 
             <form onSubmit={addRent} className="bg-[#0e0e1c] border border-white/[0.07] p-5 rounded-2xl grid grid-cols-1 sm:grid-cols-6 gap-4 items-end">
               <div>
-                <label className="text-xs text-white/50 mb-1 block">Date</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs text-white/50 block">Date</label>
+                </div>
                 <input type="date" required value={rentDate} onChange={e=>setRentDate(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg p-2.5 text-sm" />
+                <div className="flex gap-1 mt-1.5 flex-wrap">
+                  <button type="button" onClick={() => setQuickDate('today', setRentDate)} className="text-[10px] px-1.5 py-0.5 bg-white/5 hover:bg-purple-500/20 text-purple-300 rounded border border-white/10">Today</button>
+                  <button type="button" onClick={() => setQuickDate('yesterday', setRentDate)} className="text-[10px] px-1.5 py-0.5 bg-white/5 hover:bg-purple-500/20 text-purple-300 rounded border border-white/10">Yest</button>
+                  <button type="button" onClick={() => setQuickDate('1st', setRentDate)} className="text-[10px] px-1.5 py-0.5 bg-white/5 hover:bg-purple-500/20 text-purple-300 rounded border border-white/10">1st</button>
+                  <button type="button" onClick={() => setQuickDate('15th', setRentDate)} className="text-[10px] px-1.5 py-0.5 bg-white/5 hover:bg-purple-500/20 text-purple-300 rounded border border-white/10">15th</button>
+                </div>
               </div>
               <div>
                 <label className="text-xs text-white/50 mb-1 block">Bank Account</label>
@@ -526,6 +718,16 @@ export default function RentPortal() {
             </form>
 
             <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden">
+              <div className="p-4 bg-[#141426] border-b border-white/[0.07] flex justify-between items-center">
+                <span className="text-xs font-bold uppercase tracking-wider text-white/60">Rent Ledger Entries ({sortedRentEntries.length})</span>
+                <button
+                  type="button"
+                  onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                  className="text-xs px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/20 rounded-xl font-semibold transition-colors flex items-center gap-1.5"
+                >
+                  📅 Date: {sortOrder === 'desc' ? 'Newest First ↓' : 'Oldest First ↑'}
+                </button>
+              </div>
               <table className="w-full text-sm text-left">
                 <thead className="bg-[#141426] text-white/50 text-xs uppercase font-bold">
                   <tr>
@@ -538,7 +740,7 @@ export default function RentPortal() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.07]">
-                  {rentEntries.map(e => (
+                  {sortedRentEntries.map(e => (
                     <tr key={e.id} className="hover:bg-white/[0.02]">
                       <td className="px-6 py-4">{formatDate(e.date)}</td>
                       <td className="px-6 py-4">
@@ -557,7 +759,7 @@ export default function RentPortal() {
                       </td>
                     </tr>
                   ))}
-                  {rentEntries.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-white/40">No rent entries yet</td></tr>}
+                  {sortedRentEntries.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-white/40">No rent entries yet</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -570,6 +772,11 @@ export default function RentPortal() {
               <div>
                 <label className="text-xs text-white/50 mb-1 block">Date</label>
                 <input type="date" required value={expDate} onChange={e=>setExpDate(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg p-2.5 text-sm" />
+                <div className="flex gap-1 mt-1.5 flex-wrap">
+                  <button type="button" onClick={() => setQuickDate('today', setExpDate)} className="text-[10px] px-1.5 py-0.5 bg-white/5 hover:bg-purple-500/20 text-purple-300 rounded border border-white/10">Today</button>
+                  <button type="button" onClick={() => setQuickDate('yesterday', setExpDate)} className="text-[10px] px-1.5 py-0.5 bg-white/5 hover:bg-purple-500/20 text-purple-300 rounded border border-white/10">Yest</button>
+                  <button type="button" onClick={() => setQuickDate('1st', setExpDate)} className="text-[10px] px-1.5 py-0.5 bg-white/5 hover:bg-purple-500/20 text-purple-300 rounded border border-white/10">1st</button>
+                </div>
               </div>
               <div className="sm:col-span-2">
                 <label className="text-xs text-white/50 mb-1 block">Description</label>
@@ -591,12 +798,22 @@ export default function RentPortal() {
             </form>
 
             <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden">
+              <div className="p-4 bg-[#141426] border-b border-white/[0.07] flex justify-between items-center">
+                <span className="text-xs font-bold uppercase tracking-wider text-white/60">Rent Expenses ({sortedRentExpenses.length})</span>
+                <button
+                  type="button"
+                  onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                  className="text-xs px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/20 rounded-xl font-semibold transition-colors flex items-center gap-1.5"
+                >
+                  📅 Date: {sortOrder === 'desc' ? 'Newest First ↓' : 'Oldest First ↑'}
+                </button>
+              </div>
               <table className="w-full text-sm text-left">
                 <thead className="bg-[#141426] text-white/50 text-xs uppercase font-bold">
                   <tr><th className="px-6 py-4">Date</th><th className="px-6 py-4">Description</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4"></th></tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.07]">
-                  {rentExpenses.map(e => (
+                  {sortedRentExpenses.map(e => (
                     <tr key={e.id} className="hover:bg-white/[0.02]">
                       <td className="px-6 py-4">{formatDate(e.date)}</td>
                       <td className="px-6 py-4">{e.description}</td>
@@ -610,7 +827,7 @@ export default function RentPortal() {
                       </td>
                     </tr>
                   ))}
-                  {rentExpenses.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-white/40">No rent expenses yet</td></tr>}
+                  {sortedRentExpenses.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-white/40">No rent expenses yet</td></tr>}
                 </tbody>
               </table>
             </div>

@@ -14,6 +14,29 @@ export default function TopBar({ onMenuToggle, onQuickAdd }: TopBarProps) {
   const { state, store, refresh } = useStore();
   const currentTheme = state.settings.theme || 'dark';
 
+  const [dateTimeStr, setDateTimeStr] = React.useState<string>('');
+
+  React.useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const formatted = now.toLocaleDateString('en-IN', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      }) + ' · ' + now.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      });
+      setDateTimeStr(formatted);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const toggleTheme = () => {
     store.toggleTheme();
     refresh();
@@ -36,7 +59,6 @@ export default function TopBar({ onMenuToggle, onQuickAdd }: TopBarProps) {
   };
 
   const { title, subtitle } = getPageTitle(pathname || '/');
-  const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   return (
     <header className="h-[72px] bg-[#0e0e1c]/80 backdrop-blur-md border-b border-white/[0.07] sticky top-0 z-40 flex items-center justify-between px-4 md:px-8">
@@ -58,8 +80,9 @@ export default function TopBar({ onMenuToggle, onQuickAdd }: TopBarProps) {
       </div>
 
       <div className="flex items-center gap-4 md:gap-6">
-        <div className="hidden sm:block text-white/40 text-sm font-medium">
-          {dateStr}
+        <div className="hidden sm:flex items-center gap-2 text-purple-300 bg-purple-500/10 border border-purple-500/20 px-3 py-1.5 rounded-xl text-xs font-mono font-semibold shadow-inner">
+          <span className="animate-pulse text-emerald-400">🕒</span>
+          <span>{dateTimeStr || 'Loading...'}</span>
         </div>
 
         {/* Theme Switcher Toggle */}
@@ -69,7 +92,7 @@ export default function TopBar({ onMenuToggle, onQuickAdd }: TopBarProps) {
           title="Toggle Light / Dark Mode"
         >
           <span className={`text-xs ${currentTheme === 'light' ? 'text-amber-400 font-bold' : 'text-white/40'}`}>☀️</span>
-          <div className={`w-8 h-4.5 rounded-full p-0.5 transition-colors flex items-center ${currentTheme === 'light' ? 'bg-amber-500 justify-end' : 'bg-purple-600 justify-start'}`}>
+          <div className={`w-8 h-4.5 rounded-full p-0.5 transition-all flex items-center ${currentTheme === 'light' ? 'bg-amber-500 justify-start' : 'bg-purple-600 justify-end'}`}>
             <div className="w-3.5 h-3.5 rounded-full bg-white shadow-sm" />
           </div>
           <span className={`text-xs ${currentTheme === 'dark' ? 'text-purple-400 font-bold' : 'text-white/40'}`}>🌙</span>
