@@ -278,6 +278,7 @@ export default function DailyPage() {
           <table className="w-full text-left text-sm">
             <thead className="bg-[#141426] text-gray-400 text-xs uppercase font-semibold">
               <tr>
+                <th className="p-4 w-12 text-center text-white/40">#</th>
                 <th className="p-4">Date</th>
                 <th className="p-4">Account</th>
                 <th className="p-4">Category</th>
@@ -289,12 +290,13 @@ export default function DailyPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {filteredLogs.map((d) => {
+              {filteredLogs.map((d, idx) => {
                 const isFuel = d.category === 'Petrol' || d.category === 'Transport';
                 const kmDisplay = isFuel && d.kmReading ? `⛽ ${d.kmReading.toLocaleString()} km` : '—';
 
                 return (
                   <tr key={d.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="p-4 text-center text-xs font-mono text-white/40 font-bold">#{idx + 1}</td>
                     <td className="p-4 text-gray-400 text-xs">{formatDate(d.date)}</td>
                     <td className="p-4">
                       <button

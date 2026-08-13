@@ -133,6 +133,7 @@ export default function IncomePage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="text-gray-400 text-sm border-b border-white/[0.07]">
+                  <th className="pb-3 w-10 text-center font-medium text-white/40">#</th>
                   <th className="pb-3 font-medium">Name</th>
                   <th className="pb-3 font-medium">Amount</th>
                   <th className="pb-3 font-medium">Frequency</th>
@@ -142,8 +143,9 @@ export default function IncomePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.07]">
-                {income.map(i => (
+                {income.map((i, idx) => (
                   <tr key={i.id} className="hover:bg-white/[0.02]">
+                    <td className="py-3 text-center text-xs font-mono text-white/40 font-bold">#{idx + 1}</td>
                     <td className="py-3 font-medium">{i.name}</td>
                     <td className="py-3 text-emerald-400 font-semibold">{formatCurrency(i.amount, currency)}</td>
                     <td className="py-3 text-sm capitalize">{i.frequency}</td>

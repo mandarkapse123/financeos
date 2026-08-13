@@ -373,6 +373,7 @@ export default function ExpensesPage() {
           <table className="w-full text-left text-sm">
             <thead className="bg-[#141426] text-gray-400 text-xs uppercase font-semibold">
               <tr>
+                <th className="p-4 w-12 text-center text-white/40">#</th>
                 <th className="p-4">Date</th>
                 <th className="p-4">Account</th>
                 <th className="p-4">Name / Note</th>
@@ -383,12 +384,13 @@ export default function ExpensesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {filteredExpenses.map((exp) => {
+              {filteredExpenses.map((exp, idx) => {
                 const isFuel = exp.category === 'Petrol' || exp.category === 'Transport';
                 const kmDisplay = isFuel && exp.kmReading ? `⛽ ${exp.kmReading.toLocaleString()} km` : '—';
 
                 return (
                   <tr key={exp.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="p-4 text-center text-xs font-mono text-white/40 font-bold">#{idx + 1}</td>
                     <td className="p-4 text-gray-400 text-xs">{formatDate(exp.date)}</td>
                     <td className="p-4">
                       <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap">

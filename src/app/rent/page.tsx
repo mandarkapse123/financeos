@@ -731,6 +731,7 @@ export default function RentPortal() {
               <table className="w-full text-sm text-left">
                 <thead className="bg-[#141426] text-white/50 text-xs uppercase font-bold">
                   <tr>
+                    <th className="px-6 py-4 w-12 text-center text-white/40">#</th>
                     <th className="px-6 py-4">Date</th>
                     <th className="px-6 py-4">Account</th>
                     <th className="px-6 py-4">Amount</th>
@@ -740,8 +741,9 @@ export default function RentPortal() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.07]">
-                  {sortedRentEntries.map(e => (
+                  {sortedRentEntries.map((e, idx) => (
                     <tr key={e.id} className="hover:bg-white/[0.02]">
+                      <td className="px-6 py-4 text-center text-xs font-mono text-white/40 font-bold">#{idx + 1}</td>
                       <td className="px-6 py-4">{formatDate(e.date)}</td>
                       <td className="px-6 py-4">
                         <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-full">
@@ -759,7 +761,7 @@ export default function RentPortal() {
                       </td>
                     </tr>
                   ))}
-                  {sortedRentEntries.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-white/40">No rent entries yet</td></tr>}
+                  {sortedRentEntries.length === 0 && <tr><td colSpan={7} className="px-6 py-8 text-center text-white/40">No rent entries yet</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -810,11 +812,12 @@ export default function RentPortal() {
               </div>
               <table className="w-full text-sm text-left">
                 <thead className="bg-[#141426] text-white/50 text-xs uppercase font-bold">
-                  <tr><th className="px-6 py-4">Date</th><th className="px-6 py-4">Description</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4"></th></tr>
+                  <tr><th className="px-6 py-4 w-12 text-center text-white/40">#</th><th className="px-6 py-4">Date</th><th className="px-6 py-4">Description</th><th className="px-6 py-4">Category</th><th className="px-6 py-4">Amount</th><th className="px-6 py-4"></th></tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.07]">
-                  {sortedRentExpenses.map(e => (
+                  {sortedRentExpenses.map((e, idx) => (
                     <tr key={e.id} className="hover:bg-white/[0.02]">
+                      <td className="px-6 py-4 text-center text-xs font-mono text-white/40 font-bold">#{idx + 1}</td>
                       <td className="px-6 py-4">{formatDate(e.date)}</td>
                       <td className="px-6 py-4">{e.description}</td>
                       <td className="px-6 py-4"><span className="px-2 py-1 bg-white/5 rounded text-xs">{e.category}</span></td>
