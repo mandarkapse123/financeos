@@ -492,6 +492,35 @@ function processRequest(e) {
       return ContentService.createTextOutput(JSON.stringify({ status: 'success', removed: removedCount })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // 2. Remote Row Deletion Handler (2-Way Delete Sync)
+    if (p.action === 'deleteRow') {
+      const targetDate = String(p.date || '').substring(0, 10);
+      const targetAmt = String(p.amount || '').trim();
+      const targetCat = String(p.category || '').toLowerCase().trim();
+      const targetNote = String(p.note || '').toLowerCase().trim();
+      const data = sh.getDataRange().getValues();
+      let deleted = false;
+
+      for (let i = data.length - 1; i >= 1; i--) {
+        const row = data[i];
+        if (!row || row[1] === "" || row[1] === null) continue;
+        const rDate = String(row[0] || '').substring(0, 10);
+        const rAmt = String(row[1] || '').trim();
+        const rCat = String(row[2] || '').toLowerCase().trim();
+        const rNote = String(row[3] || '').toLowerCase().trim();
+
+        if (rAmt === targetAmt &&
+            (targetDate === "" || rDate === targetDate) &&
+            (targetCat === "" || rCat === targetCat) &&
+            (targetNote === "" || rNote === targetNote)) {
+          sh.deleteRow(i + 1);
+          deleted = true;
+          break;
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: 'success', deleted: deleted })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     // 2. Smart Append with 3-minute Duplicate Window Protection (iPhone Shortcut fix)
     const amount = p.amount || p.amt;
     if (amount) {

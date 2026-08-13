@@ -491,6 +491,48 @@ class Store {
       }
     });
 
+    // 2-Way Deletion Sync: Purge local sheet-synced entries if deleted in Google Sheet
+    const remoteSheetSigs = new Set<string>();
+    items.forEach((item: any) => {
+      let dVal = '', aVal = 0, cVal = '', nVal = '';
+      if (Array.isArray(item)) {
+        dVal = item[0] ? String(item[0]) : '';
+        aVal = parseFloat(item[1] as any);
+        cVal = item[2] ? String(item[2]) : 'Expenses';
+        nVal = item[3] ? String(item[3]) : '';
+      } else if (typeof item === 'object') {
+        dVal = (item.date || '') as string;
+        aVal = parseFloat((item.amount ?? item.amt) as any);
+        cVal = (item.category ?? item.cat ?? 'Expenses') as string;
+        nVal = (item.note ?? item.description ?? '') as string;
+      }
+      if (!isNaN(aVal) && aVal > 0) {
+        remoteSheetSigs.add(getSignature(parseSafeDate(dVal), aVal, cVal, nVal));
+      }
+    });
+
+    const initDailyCount = this.state.daily.length;
+    this.state.daily = this.state.daily.filter(d => {
+      if (d.id.startsWith('sheet_row_')) {
+        const sig = getSignature(parseSafeDate(d.date), d.amount, d.category, d.note || '');
+        if (!remoteSheetSigs.has(sig)) return false;
+      }
+      return true;
+    });
+
+    const initExpCount = this.state.expenses.length;
+    this.state.expenses = this.state.expenses.filter(e => {
+      if (e.id.startsWith('sheet_row_')) {
+        const sig = getSignature(parseSafeDate(e.date), e.amount, e.category, e.note || e.name || '');
+        if (!remoteSheetSigs.has(sig)) return false;
+      }
+      return true;
+    });
+
+    if (this.state.daily.length !== initDailyCount || this.state.expenses.length !== initExpCount) {
+      updated = true;
+    }
+
     if (updated) {
       this.save();
     }
@@ -513,12 +555,37 @@ class Store {
     this.save();
   }
 
+  // Remote Deletion Dispatcher (FinanceOS -> Google Sheet)
+  remoteDeleteRow(item: { date?: string; amount?: number; category?: string; note?: string; name?: string; notes?: string; description?: string }) {
+    if (!item) return;
+    const url = this.state.settings.endpoint;
+    if (!url) return;
+
+    try {
+      const date = (item.date || '').substring(0, 10);
+      const amount = String(item.amount || '');
+      const category = item.category || '';
+      const note = item.note || item.name || item.notes || item.description || '';
+
+      const query = new URLSearchParams({
+        action: 'deleteRow',
+        date,
+        amount,
+        category,
+        note
+      }).toString();
+
+      fetch(`${url}${url.includes('?') ? '&' : '?'}${query}`, { mode: 'no-cors' }).catch(() => {});
+    } catch {}
+  }
+
   // Expenses & Daily Unified Deletion
   getExpenses() { return this.getForAccount(this.state.expenses); }
   upsertExpense(item: AppState['expenses'][0]) { this.state.expenses = this.upsert(this.state.expenses, item); this.save(); }
   deleteExpense(id: string) {
     const target = this.state.expenses.find(e => e.id === id) || this.state.daily.find(d => d.id === id);
     if (target) {
+      this.remoteDeleteRow(target);
       const dateStr = (target.date || '').substring(0, 10);
       const catLower = (target.category || '').toLowerCase();
       const noteLower = (target.note || ('name' in target ? (target as any).name : '') || '').toLowerCase().trim();
@@ -575,11 +642,21 @@ class Store {
   // Rent
   getRentEntries() { return this.getForAccount(this.state.rentEntries); }
   upsertRentEntry(item: AppState['rentEntries'][0]) { this.state.rentEntries = this.upsert(this.state.rentEntries, item); this.save(); }
-  deleteRentEntry(id: string) { this.state.rentEntries = this.remove(this.state.rentEntries, id); this.save(); }
+  deleteRentEntry(id: string) {
+    const target = this.state.rentEntries.find(r => r.id === id);
+    if (target) this.remoteDeleteRow({ date: target.date, amount: target.amount, note: target.notes || target.period });
+    this.state.rentEntries = this.remove(this.state.rentEntries, id);
+    this.save();
+  }
 
   getRentExpenses() { return this.getForAccount(this.state.rentExpenses); }
   upsertRentExpense(item: AppState['rentExpenses'][0]) { this.state.rentExpenses = this.upsert(this.state.rentExpenses, item); this.save(); }
-  deleteRentExpense(id: string) { this.state.rentExpenses = this.remove(this.state.rentExpenses, id); this.save(); }
+  deleteRentExpense(id: string) {
+    const target = this.state.rentExpenses.find(e => e.id === id);
+    if (target) this.remoteDeleteRow({ date: target.date, amount: target.amount, category: target.category, description: target.description });
+    this.state.rentExpenses = this.remove(this.state.rentExpenses, id);
+    this.save();
+  }
 
   getRentReceipts() { return this.getForAccount(this.state.rentReceipts); }
   addRentReceipt(receipt: Omit<AppState['rentReceipts'][0], 'id' | 'accountId'>) {
