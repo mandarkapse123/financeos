@@ -23,6 +23,7 @@ export default function ExpensesPage() {
 
   const [editing, setEditing] = useState<ExpenseEntry | null>(null);
   const [selectedCat, setSelectedCat] = useState<string>('All');
+  const [selectedBank, setSelectedBank] = useState<'All' | 'HDFC Bank' | 'ICICI Bank' | 'SBI Bank'>('All');
   const [formCategory, setFormCategory] = useState<string>('Petrol');
 
   if (!mounted) return null;
@@ -104,9 +105,11 @@ export default function ExpensesPage() {
   }, {} as Record<string, number>);
 
   // Filtered view based on tab
-  const filteredExpenses = selectedCat === 'All'
-    ? allCombinedExpenses
-    : allCombinedExpenses.filter(e => e.category === selectedCat);
+  const filteredExpenses = allCombinedExpenses.filter(e => {
+    const matchCat = selectedCat === 'All' || e.category === selectedCat;
+    const matchBank = selectedBank === 'All' || (e.bankAccount || 'HDFC Bank') === selectedBank;
+    return matchCat && matchBank;
+  });
 
   const handleSaveExpense = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -330,8 +333,23 @@ export default function ExpensesPage() {
       {/* CATEGORY TABS (SEPARATE TAB FOR EACH CATEGORY) */}
       <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 space-y-4 shadow-xl">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <h3 className="text-lg font-semibold">Expenses List by Category</h3>
-          <span className="text-xs text-gray-400">Select a category tab below to isolate views</span>
+          <h3 className="text-lg font-semibold">Expenses List by Category & Bank</h3>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">Filter Bank:</span>
+            {(['All', 'HDFC Bank', 'ICICI Bank', 'SBI Bank'] as const).map(b => (
+              <button
+                key={b}
+                onClick={() => setSelectedBank(b)}
+                className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                  selectedBank === b
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                    : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                {b === 'All' ? 'All Banks' : b}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Tab Buttons */}

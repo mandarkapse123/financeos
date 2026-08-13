@@ -21,6 +21,7 @@ export interface Account {
 export interface IncomeEntry {
   id: string;
   accountId: string;
+  bankAccount?: string;
   name: string;
   amount: number;
   category: string;

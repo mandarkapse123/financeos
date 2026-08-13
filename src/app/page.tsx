@@ -74,6 +74,7 @@ export default function Dashboard() {
 
   const hdfcExpenses = expenses.filter(e => (e.bankAccount || 'HDFC Bank') === 'HDFC Bank').reduce((s, e) => s + e.amount, 0);
   const iciciExpenses = expenses.filter(e => e.bankAccount === 'ICICI Bank').reduce((s, e) => s + e.amount, 0);
+  const sbiExpenses = expenses.filter(e => e.bankAccount === 'SBI Bank').reduce((s, e) => s + e.amount, 0);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 text-white min-h-screen">
@@ -120,9 +121,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: 'Monthly Income', val: totalIncome, color: 'text-emerald-400' },
-          { label: 'Total Expenses', val: totalExpenses, color: 'text-rose-400' },
           { label: '🏦 HDFC Bank Spend', val: hdfcExpenses, color: 'text-purple-400' },
           { label: '🏦 ICICI Bank Spend', val: iciciExpenses, color: 'text-amber-400' },
+          { label: '🏦 SBI Bank Spend', val: sbiExpenses, color: 'text-blue-400' },
         ].map(m => (
           <div key={m.label} className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
             <h3 className="text-sm text-gray-400">{m.label}</h3>
