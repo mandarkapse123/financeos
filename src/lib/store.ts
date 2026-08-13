@@ -635,6 +635,87 @@ class Store {
     return { cleanedEntries, cleanedExpenses };
   }
 
+  cleanAllDuplicates(): { cleanedDaily: number; cleanedExpenses: number; cleanedRentEntries: number; cleanedRentExpenses: number } {
+    let cleanedDaily = 0;
+    let cleanedExpenses = 0;
+
+    const seenDaily = new Set<string>();
+    const uniqueDaily = (this.state.daily || []).filter(e => {
+      if (!e) return false;
+      const d = (e.date || '').substring(0, 10);
+      const amt = e.amount || 0;
+      const cat = (e.category || '').toLowerCase().trim();
+      const note = (e.note || '').toLowerCase().trim();
+      const key = e.id ? `id_${e.id}` : `sig_${d}_${amt}_${cat}_${note}`;
+      const sigKey = `sig_${d}_${amt}_${cat}_${note}`;
+      if (seenDaily.has(key) || (sigKey !== 'sig___' && seenDaily.has(sigKey))) {
+        cleanedDaily++;
+        return false;
+      }
+      if (e.id) seenDaily.add(key);
+      if (sigKey !== 'sig___') seenDaily.add(sigKey);
+      return true;
+    });
+
+    const seenExp = new Set<string>();
+    const uniqueExp = (this.state.expenses || []).filter(e => {
+      if (!e) return false;
+      const d = (e.date || '').substring(0, 10);
+      const amt = e.amount || 0;
+      const cat = (e.category || '').toLowerCase().trim();
+      const title = (e.name || e.note || '').toLowerCase().trim();
+      const key = e.id ? `id_${e.id}` : `sig_${d}_${amt}_${cat}_${title}`;
+      const sigKey = `sig_${d}_${amt}_${cat}_${title}`;
+      if (seenExp.has(key) || (sigKey !== 'sig___' && seenExp.has(sigKey))) {
+        cleanedExpenses++;
+        return false;
+      }
+      if (e.id) seenExp.add(key);
+      if (sigKey !== 'sig___') seenExp.add(sigKey);
+      return true;
+    });
+
+    this.state.daily = uniqueDaily;
+    this.state.expenses = uniqueExp;
+
+    const rentRes = this.cleanRentDuplicates();
+    this.save();
+
+    return {
+      cleanedDaily,
+      cleanedExpenses,
+      cleanedRentEntries: rentRes.cleanedEntries,
+      cleanedRentExpenses: rentRes.cleanedExpenses
+    };
+  }
+
+  auditLedger(): { totalRecords: number; duplicateCandidates: number; categories: Record<string, number> } {
+    const all = [
+      ...this.state.daily.map(d => ({ date: d.date, amount: d.amount, label: d.category, type: 'daily' })),
+      ...this.state.expenses.map(e => ({ date: e.date, amount: e.amount, label: e.category, type: 'expense' })),
+      ...this.state.rentEntries.map(r => ({ date: r.date, amount: r.amount, label: r.notes || 'Rent', type: 'rent' }))
+    ];
+
+    const sigs = new Map<string, number>();
+    let duplicateCandidates = 0;
+    const categories: Record<string, number> = {};
+
+    all.forEach(item => {
+      const sig = `${(item.date || '').substring(0, 10)}_${item.amount}_${(item.label || '').toLowerCase().trim()}`;
+      const count = (sigs.get(sig) || 0) + 1;
+      sigs.set(sig, count);
+      if (count > 1) duplicateCandidates++;
+
+      categories[item.label] = (categories[item.label] || 0) + 1;
+    });
+
+    return {
+      totalRecords: all.length,
+      duplicateCandidates,
+      categories
+    };
+  }
+
   // Export/Import
   exportJSON(): string {
     return JSON.stringify(this.state, null, 2);

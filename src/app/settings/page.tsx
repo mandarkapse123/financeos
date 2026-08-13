@@ -465,17 +465,76 @@ function processRequest(e) {
     }
 
     const p = (e && e.parameter) ? e.parameter : {};
-    const amount = p.amount || p.amt;
 
+    // 1. One-click Sheet Duplicate Cleaner Action
+    if (p.action === 'cleanSheetDuplicates') {
+      const data = sh.getDataRange().getValues();
+      const seenSigs = {};
+      let removedCount = 0;
+
+      for (let i = data.length - 1; i >= 1; i--) {
+        const row = data[i];
+        if (!row || row[1] === "" || row[1] === null) continue;
+        const rawDate = String(row[0] || '');
+        const dateStr = rawDate.substring(0, 10);
+        const amt = String(row[1] || '').trim();
+        const cat = String(row[2] || '').toLowerCase().trim();
+        const note = String(row[3] || '').toLowerCase().trim();
+        const sig = dateStr + '_' + amt + '_' + cat + '_' + note;
+
+        if (seenSigs[sig]) {
+          sh.deleteRow(i + 1);
+          removedCount++;
+        } else {
+          seenSigs[sig] = true;
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: 'success', removed: removedCount })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 2. Smart Append with 3-minute Duplicate Window Protection (iPhone Shortcut fix)
+    const amount = p.amount || p.amt;
     if (amount) {
       const category = p.category || p.cat || 'Expenses';
       const note = p.note || '';
       const method = p.method || 'UPI';
       const km = p.kmReading || p.km || p.odometer || '';
-      sh.appendRow([new Date().toLocaleString(), amount, category, note, method, km]);
+      const now = new Date();
+
+      // Check last 10 rows to prevent rapid double-tap duplicates
+      const lastRows = sh.getLastRow();
+      const startCheckRow = Math.max(2, lastRows - 10);
+      let isDuplicate = false;
+
+      if (lastRows >= 2) {
+        const recentData = sh.getRange(startCheckRow, 1, lastRows - startCheckRow + 1, 4).getValues();
+        for (let r = 0; r < recentData.length; r++) {
+          const rRow = recentData[r];
+          const rDate = new Date(rRow[0]);
+          const rAmt = String(rRow[1]);
+          const rCat = String(rRow[2]);
+          const rNote = String(rRow[3]);
+
+          const timeDiffMinutes = (now.getTime() - rDate.getTime()) / (1000 * 60);
+          if (timeDiffMinutes >= 0 && timeDiffMinutes <= 3 &&
+              String(amount) === rAmt &&
+              String(category).toLowerCase() === rCat.toLowerCase() &&
+              String(note).toLowerCase().trim() === rNote.toLowerCase().trim()) {
+            isDuplicate = true;
+            break;
+          }
+        }
+      }
+
+      if (isDuplicate) {
+        return ContentService.createTextOutput(JSON.stringify({ status: 'duplicate_prevented', message: 'Prevented iPhone double-tap duplicate row' })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      sh.appendRow([now.toLocaleString(), amount, category, note, method, km]);
       return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // 3. Return full rows & synced state
     const data = sh.getDataRange().getValues();
     const rows = [];
     for (let i = 1; i < data.length; i++) {
