@@ -191,12 +191,14 @@ export default function RentPortal() {
   const rentExpenses = store.getRentExpenses();
   const rentReceipts = store.getRentReceipts();
 
-  // Strict Date Sorting (Newest First / Oldest First)
+  // Strict Date & Time/ID Sorting (Newest First / Oldest First)
   const sortedRentEntries = useMemo(() => {
     return [...rentEntries].sort((a, b) => {
       const da = a.date || '';
       const db = b.date || '';
-      return sortOrder === 'desc' ? db.localeCompare(da) : da.localeCompare(db);
+      const dComp = sortOrder === 'desc' ? db.localeCompare(da) : da.localeCompare(db);
+      if (dComp !== 0) return dComp;
+      return sortOrder === 'desc' ? (b.id || '').localeCompare(a.id || '') : (a.id || '').localeCompare(b.id || '');
     });
   }, [rentEntries, sortOrder]);
 
@@ -204,7 +206,9 @@ export default function RentPortal() {
     return [...rentExpenses].sort((a, b) => {
       const da = a.date || '';
       const db = b.date || '';
-      return sortOrder === 'desc' ? db.localeCompare(da) : da.localeCompare(db);
+      const dComp = sortOrder === 'desc' ? db.localeCompare(da) : da.localeCompare(db);
+      if (dComp !== 0) return dComp;
+      return sortOrder === 'desc' ? (b.id || '').localeCompare(a.id || '') : (a.id || '').localeCompare(b.id || '');
     });
   }, [rentExpenses, sortOrder]);
 

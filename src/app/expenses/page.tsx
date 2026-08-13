@@ -57,7 +57,11 @@ export default function ExpensesPage() {
     if (seenKeys.has(key)) return false;
     seenKeys.add(key);
     return true;
-  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }).sort((a, b) => {
+    const dComp = (b.date || '').localeCompare(a.date || '');
+    if (dComp !== 0) return dComp;
+    return (b.id || '').localeCompare(a.id || '');
+  });
 
   const showKmColumn = selectedCat === 'Petrol' || selectedCat === 'Transport';
 

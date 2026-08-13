@@ -58,7 +58,11 @@ export default function DailyPage() {
     if (seenSigs.has(signature)) return false;
     seenSigs.add(signature);
     return true;
-  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }).sort((a, b) => {
+    const dComp = (b.date || '').localeCompare(a.date || '');
+    if (dComp !== 0) return dComp;
+    return (b.id || '').localeCompare(a.id || '');
+  });
 
   const todayStr = new Date().toISOString().substring(0, 10);
   const todaysLog = masterDailyLogs.filter(d => (d.date || '').startsWith(todayStr));

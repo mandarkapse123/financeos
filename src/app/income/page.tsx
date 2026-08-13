@@ -68,10 +68,14 @@ export default function IncomePage() {
     return result;
   }, [allIncome, allExpenses, allDaily, allRentEntries, allRentExpenses]);
 
-  // Filtered Income List based on selectedBank filter
+  // Filtered Income List based on selectedBank filter with Date & Time sorting
   const income = useMemo(() => {
-    if (selectedBank === 'All') return allIncome;
-    return allIncome.filter(i => (i.bankAccount || 'HDFC Bank') === selectedBank);
+    const list = selectedBank === 'All' ? allIncome : allIncome.filter(i => (i.bankAccount || 'HDFC Bank') === selectedBank);
+    return [...list].sort((a, b) => {
+      const dComp = (b.date || '').localeCompare(a.date || '');
+      if (dComp !== 0) return dComp;
+      return (b.id || '').localeCompare(a.id || '');
+    });
   }, [allIncome, selectedBank]);
 
   if (!mounted) return null;
