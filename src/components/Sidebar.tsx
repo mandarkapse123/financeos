@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useStore } from '@/lib/store-context';
+import { APP_VERSION, BUILD_NUMBER } from '@/lib/version';
 
 export default function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen?: boolean, setMobileOpen?: (val: boolean) => void }) {
   const pathname = usePathname();
@@ -166,6 +167,12 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen?: bo
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
             </svg>
           </button>
+        </div>
+
+        {/* Version & Build Indicator */}
+        <div className="px-4 py-2 border-t border-white/[0.04] flex items-center justify-between text-[10px] text-gray-500 font-mono bg-black/30">
+          <span className="text-purple-400 font-semibold">{APP_VERSION}</span>
+          <span className="text-emerald-400/80">{BUILD_NUMBER}</span>
         </div>
 
       </aside>

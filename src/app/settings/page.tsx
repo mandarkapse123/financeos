@@ -5,8 +5,9 @@ import { useStore } from '../../lib/store-context';
 import { generateId } from '../../lib/store';
 import { downloadFile } from '../../lib/utils';
 import { pushStateToSupabase, pullStateFromSupabase } from '../../lib/supabase';
+import { APP_VERSION, BUILD_NUMBER, BUILD_TIMESTAMP, BUILD_RELEASE_NOTE } from '../../lib/version';
 import {
-  User, Wallet, Smartphone, Database, Trash2, Plus, Upload, Download, RefreshCw, X, ShieldAlert, FileJson, Pencil, Check, Users, ArrowUpRight
+  User, Wallet, Smartphone, Database, Trash2, Plus, Upload, Download, RefreshCw, X, ShieldAlert, FileJson, Pencil, Check, Users, ArrowUpRight, Sparkles, Server
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -240,13 +241,107 @@ export default function SettingsPage() {
           </div>
         ))}
       </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/10">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">System Settings</h1>
+          <p className="text-gray-400 text-sm mt-1">Manage cloud database, multi-member shortcuts, and preferences.</p>
+        </div>
 
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">System Settings</h1>
-        <p className="text-gray-400 text-sm mt-1">Manage preferences, accounts, Google Sheet sync, and backups.</p>
+        {/* Live Build Version Badge */}
+        <div className="bg-[#0e0e1c] border border-purple-500/30 rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-lg shrink-0">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-xs text-purple-300 font-mono">{APP_VERSION}</span>
+              <span className="text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono font-bold">{BUILD_NUMBER}</span>
+            </div>
+            <p className="text-[10px] text-gray-400">{BUILD_TIMESTAMP}</p>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-6">
+        {/* Supabase Realtime Cloud Backend (HERO CARD #1) */}
+        <div className="bg-gradient-to-r from-emerald-950/50 via-[#0e0e1c] to-purple-950/50 border border-emerald-500/40 rounded-2xl overflow-hidden shadow-2xl">
+          <SectionHeader icon={Database} title="Supabase Cloud Database (Primary Backend)" />
+          <div className="p-4 border-b border-white/[0.07] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-emerald-400 animate-ping"></span>
+                <p className="font-bold text-base text-emerald-300">Connected to Supabase (PostgreSQL)</p>
+              </div>
+              <p className="text-xs text-gray-300 mt-1 font-mono">https://vcuvteccdxvgxqokyytp.supabase.co</p>
+            </div>
+            <div className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5">
+              <span>⚡</span> WebSockets Realtime Active
+            </div>
+          </div>
+          
+          {/* Main Action Buttons */}
+          <div className="p-4 border-b border-white/[0.07] flex flex-col sm:flex-row gap-3 bg-white/[0.01]">
+            <button
+              onClick={handlePushToSupabase}
+              className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl p-3.5 text-xs font-bold transition-all shadow-xl flex items-center justify-center gap-2"
+            >
+              <span>🚀</span> Sync / Migrate All Data to Supabase Now
+            </button>
+            <button
+              onClick={handlePullFromSupabase}
+              className="flex-1 bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 rounded-xl p-3.5 text-xs font-bold transition-all flex items-center justify-center gap-2"
+            >
+              <span>📥</span> Pull Latest from Supabase
+            </button>
+          </div>
+
+          {/* Multi-Member Shortcuts */}
+          <div className="p-4 bg-white/[0.02] border-b border-white/[0.07] space-y-3">
+            <p className="text-xs font-bold text-white flex items-center gap-1.5">
+              <span>👥</span> Multi-Member iPhone Back-Tap & Action Button Shortcuts:
+            </p>
+            <p className="text-[11px] text-gray-300">
+              Multiple members can each have their own Back-Tap shortcut on their iPhones. Each person's name will automatically appear on logged transactions:
+            </p>
+            
+            <div className="space-y-2">
+              <div className="bg-black/60 p-2.5 rounded-xl border border-white/10 text-[11px] flex items-center justify-between">
+                <div>
+                  <span className="text-emerald-400 font-bold">👤 Your Shortcut (Mandar):</span>
+                  <p className="font-mono text-gray-400 text-[10px] mt-0.5">https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&user=Mandar</p>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText('https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&user=Mandar');
+                    showToast('📋 Mandar shortcut URL copied!', 'success');
+                  }}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-semibold ml-2 shrink-0"
+                >
+                  Copy
+                </button>
+              </div>
+
+              <div className="bg-black/60 p-2.5 rounded-xl border border-white/10 text-[11px] flex items-center justify-between">
+                <div>
+                  <span className="text-purple-400 font-bold">👥 Family Member Shortcut:</span>
+                  <p className="font-mono text-gray-400 text-[10px] mt-0.5">https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&user=MemberName</p>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText('https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&user=MemberName');
+                    showToast('📋 Member shortcut URL copied! Replace MemberName with their name.', 'info');
+                  }}
+                  className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-md text-[10px] font-semibold ml-2 shrink-0"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+            
+            <p className="text-[10px] text-gray-400">
+              💡 In Apple Shortcuts: Add <strong>"Get Contents of URL"</strong> &rarr; Method: <strong>GET or POST</strong>. Logs expenses in &lt; 100ms and updates everyone's screens instantly!
+            </p>
+          </div>
+        </div>
+
         {/* Profile Settings */}
         <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
           <SectionHeader icon={User} title="Profile & Preferences" />
@@ -299,145 +394,57 @@ export default function SettingsPage() {
                     className="bg-purple-600 hover:bg-purple-500 text-white p-1.5 rounded-lg transition-colors"
                     title="Save name"
                   >
-                    <Check size={16} />
+                    <Check size={14} />
                   </button>
                   <button
                     onClick={() => setEditingAccId(null)}
-                    className="bg-white/10 hover:bg-white/20 text-white p-1.5 rounded-lg transition-colors"
+                    className="bg-white/10 hover:bg-white/20 text-gray-400 p-1.5 rounded-lg transition-colors"
                     title="Cancel"
                   >
-                    <X size={16} />
+                    <X size={14} />
                   </button>
                 </div>
               ) : (
-                <div>
-                  <p className="font-medium text-sm flex items-center gap-2">
-                    {acc.name}
-                    {acc.isDefault && <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] rounded-full uppercase font-bold">Default</span>}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5 capitalize">{acc.type} Account</p>
-                </div>
-              )}
-              {editingAccId !== acc.id && (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-sm">{acc.name}</p>
                   <button
                     onClick={() => handleStartEditAccount(acc.id, acc.name)}
-                    className="text-gray-400 hover:text-purple-300 p-2 transition-colors"
+                    className="text-gray-400 hover:text-purple-300 p-1 rounded transition-colors"
                     title="Edit account name"
                   >
-                    <Pencil size={16} />
+                    <Pencil size={12} />
                   </button>
-                  {!acc.isDefault && (
-                    <button onClick={() => handleDeleteAccount(acc.id, acc.isDefault)} className="text-gray-400 hover:text-rose-400 p-2 transition-colors">
-                      <Trash2 size={16} />
-                    </button>
-                  )}
                 </div>
               )}
+              <span className="text-xs bg-white/10 px-2.5 py-1 rounded-full text-gray-300 uppercase">{acc.type}</span>
             </div>
           ))}
           <div className="p-4 bg-white/[0.02]">
-            <form onSubmit={createAccount} className="flex flex-col sm:flex-row gap-3">
+            <form onSubmit={createAccount} className="flex gap-3">
               <input
                 type="text"
-                placeholder="New account name"
+                placeholder="New account name (e.g. Business)"
                 value={newAccName}
                 onChange={e => setNewAccName(e.target.value)}
                 className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-sm flex-1"
-                required
               />
               <select
                 value={newAccType}
                 onChange={e => setNewAccType(e.target.value)}
-                className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-sm w-32"
+                className="bg-black/50 border border-white/10 rounded-xl p-2.5 text-sm"
               >
                 <option value="personal">Personal</option>
                 <option value="business">Business</option>
                 <option value="joint">Joint</option>
+                <option value="other">Other</option>
               </select>
-              <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white rounded-xl p-2.5 text-sm font-semibold px-4 flex items-center justify-center gap-2 transition-all">
+              <button
+                type="submit"
+                className="bg-purple-600 hover:bg-purple-500 text-white rounded-xl px-4 py-2 text-sm font-semibold flex items-center gap-1 transition-colors"
+              >
                 <Plus size={16} /> Add
               </button>
             </form>
-          </div>
-        </div>
-
-        {/* Supabase Realtime Cloud Backend */}
-        <div className="bg-gradient-to-r from-emerald-950/40 via-[#0e0e1c] to-purple-950/40 border border-emerald-500/30 rounded-2xl overflow-hidden shadow-xl">
-          <SectionHeader icon={Database} title="Supabase Real-Time Database (Primary Backend)" />
-          <div className="p-4 border-b border-white/[0.07] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <p className="font-semibold text-sm text-emerald-300">Connected to Supabase (PostgreSQL)</p>
-              </div>
-              <p className="text-xs text-gray-400 mt-1 font-mono">https://vcuvteccdxvgxqokyytp.supabase.co</p>
-            </div>
-            <div className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg font-medium">
-              ⚡ WebSockets Realtime Active
-            </div>
-          </div>
-          
-          <div className="p-4 border-b border-white/[0.07] flex flex-col sm:flex-row gap-3">
-            <button
-              onClick={handlePushToSupabase}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl p-3 text-xs font-bold transition-all shadow-lg flex items-center justify-center gap-2"
-            >
-              <span>🚀</span> Sync / Migrate All Data to Supabase Now
-            </button>
-            <button
-              onClick={handlePullFromSupabase}
-              className="flex-1 bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 rounded-xl p-3 text-xs font-bold transition-all flex items-center justify-center gap-2"
-            >
-              <span>📥</span> Pull Latest from Supabase
-            </button>
-          </div>
-
-          <div className="p-4 bg-white/[0.02] border-b border-white/[0.07] space-y-3">
-            <p className="text-xs font-bold text-white flex items-center gap-1.5">
-              <span>👥</span> Multi-Member iPhone Back-Tap & Action Button Shortcuts:
-            </p>
-            <p className="text-[11px] text-gray-300">
-              Multiple members can each have their own Back-Tap shortcut on their iPhones. Each person's name will automatically appear on logged transactions:
-            </p>
-            
-            <div className="space-y-2">
-              <div className="bg-black/60 p-2.5 rounded-xl border border-white/10 text-[11px] flex items-center justify-between">
-                <div>
-                  <span className="text-emerald-400 font-bold">👤 Your Shortcut (Mandar):</span>
-                  <p className="font-mono text-gray-400 text-[10px] mt-0.5">https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&user=Mandar</p>
-                </div>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText('https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&user=Mandar');
-                    showToast('📋 Mandar shortcut URL copied!', 'success');
-                  }}
-                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-semibold ml-2 shrink-0"
-                >
-                  Copy
-                </button>
-              </div>
-
-              <div className="bg-black/60 p-2.5 rounded-xl border border-white/10 text-[11px] flex items-center justify-between">
-                <div>
-                  <span className="text-purple-400 font-bold">👥 Family Member Shortcut:</span>
-                  <p className="font-mono text-gray-400 text-[10px] mt-0.5">https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&user=MemberName</p>
-                </div>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText('https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&user=MemberName');
-                    showToast('📋 Member shortcut URL copied! Replace MemberName with their name.', 'info');
-                  }}
-                  className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-md text-[10px] font-semibold ml-2 shrink-0"
-                >
-                  Copy
-                </button>
-              </div>
-            </div>
-            
-            <p className="text-[10px] text-gray-400">
-              💡 In Apple Shortcuts: Add <strong>"Get Contents of URL"</strong> &rarr; Method: <strong>GET or POST</strong>. Logs expenses in &lt; 100ms and updates everyone's screens instantly!
-            </p>
           </div>
         </div>
 
