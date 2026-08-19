@@ -148,6 +148,7 @@ export interface AppSettings {
   budgets: Budget;
   customCategories?: string[];
   deletedIds?: string[];
+  openingBalances?: Record<string, number>;
   theme?: 'dark' | 'light';
 }
 

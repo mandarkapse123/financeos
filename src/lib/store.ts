@@ -313,6 +313,14 @@ class Store {
     this.save();
   }
 
+  updateOpeningBalance(bank: string, balance: number) {
+    if (!this.state.settings.openingBalances) {
+      this.state.settings.openingBalances = {};
+    }
+    this.state.settings.openingBalances[bank] = balance;
+    this.save();
+  }
+
   addCustomCategory(category: string) {
     const trimmed = category.trim();
     if (!trimmed) return;

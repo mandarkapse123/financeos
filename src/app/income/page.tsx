@@ -28,6 +28,7 @@ export default function IncomePage() {
   const [selectedBank, setSelectedBank] = useState<'All' | 'HDFC Bank' | 'ICICI Bank' | 'SBI Bank'>('All');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<IncomeEntry | null>(null);
+  const [editingOpeningBank, setEditingOpeningBank] = useState<{ name: string; balance: number } | null>(null);
 
   const currentMonthKey = new Date().toISOString().substring(0, 7);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
@@ -243,6 +244,8 @@ export default function IncomePage() {
           ].map(bank => {
             const stats = bankStats[bank.name] || { income: 0, expenses: 0, net: 0, monthIncome: 0, monthExpenses: 0, monthBalance: 0 };
             const isSelected = selectedBank === bank.name;
+            const openingBal = state.settings.openingBalances?.[bank.name] || 0;
+            const currentBankBalance = openingBal + stats.net;
 
             return (
               <div
@@ -256,10 +259,37 @@ export default function IncomePage() {
                   <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${bank.badge}`}>
                     🏦 {bank.name}
                   </span>
-                  {isSelected && <span className="text-xs bg-purple-500 text-white font-bold px-2 py-0.5 rounded-full">Active Filter</span>}
+                  <div className="flex items-center gap-1.5">
+                    {isSelected && <span className="text-xs bg-purple-500 text-white font-bold px-2 py-0.5 rounded-full">Active</span>}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingOpeningBank({ name: bank.name, balance: openingBal });
+                      }}
+                      className="text-xs bg-white/10 hover:bg-purple-600 text-white px-2 py-0.5 rounded-lg flex items-center gap-1 transition-all"
+                      title="Set Opening Balance"
+                    >
+                      <Pencil size={11} /> Edit Opening
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-3 mt-3">
+                  {/* HERO: Current Bank Balance */}
+                  <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">💰 Current Bank Balance</span>
+                      <span className={`text-lg font-bold ${currentBankBalance >= 0 ? bank.text : 'text-rose-400'}`}>
+                        {formatCurrency(currentBankBalance, currency)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] text-gray-400 mt-1">
+                      <span>Opening: {formatCurrency(openingBal, currency)}</span>
+                      <span>Net Cashflow: {stats.net >= 0 ? '+' : ''}{formatCurrency(stats.net, currency)}</span>
+                    </div>
+                  </div>
+
                   {/* Top: Total Bank Income */}
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-400 font-medium">Bank Income (Total)</span>
@@ -289,14 +319,6 @@ export default function IncomePage() {
                     <span className="text-xs text-gray-400 font-medium">Bank Expenses (Total)</span>
                     <span className="text-sm font-semibold text-rose-400 flex items-center gap-1">
                       <ArrowDownRight size={14} /> -{formatCurrency(stats.expenses, currency)}
-                    </span>
-                  </div>
-
-                  {/* Footer: Net Position */}
-                  <div className="pt-2 border-t border-white/10 flex justify-between items-center">
-                    <span className="text-xs font-bold text-gray-300 uppercase">Net Position</span>
-                    <span className={`text-lg font-bold ${stats.net >= 0 ? bank.text : 'text-rose-400'}`}>
-                      {formatCurrency(stats.net, currency)}
                     </span>
                   </div>
                 </div>
@@ -546,6 +568,63 @@ export default function IncomePage() {
                   className="px-5 py-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 rounded-xl text-xs font-bold shadow-lg shadow-purple-600/30 transition-all"
                 >
                   Save Income
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT OPENING BANK BALANCE */}
+      {editingOpeningBank && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              🏦 Set Opening Balance — {editingOpeningBank.name}
+            </h2>
+            <p className="text-xs text-gray-400">
+              Enter your initial/starting account balance. Current bank balance will be calculated as: <br />
+              <span className="text-purple-300 font-mono">Opening Balance + Total Income - Total Expenses</span>
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const val = parseFloat(formData.get('openingBalance') as string) || 0;
+                store.updateOpeningBalance(editingOpeningBank.name, val);
+                refresh();
+                setEditingOpeningBank(null);
+              }}
+              className="space-y-4 text-sm"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-purple-300 uppercase tracking-wider mb-1">
+                  Opening Balance ({currency})
+                </label>
+                <input
+                  required
+                  type="number"
+                  step="any"
+                  name="openingBalance"
+                  defaultValue={editingOpeningBank.balance || ''}
+                  placeholder="e.g. 50000"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-bold text-lg focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingOpeningBank(null)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white text-xs font-bold shadow-lg shadow-purple-600/30"
+                >
+                  Save Opening Balance
                 </button>
               </div>
             </form>
