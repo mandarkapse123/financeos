@@ -27,8 +27,41 @@ export default function IncomePage() {
 
   const [selectedBank, setSelectedBank] = useState<'All' | 'HDFC Bank' | 'ICICI Bank' | 'SBI Bank'>('All');
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<IncomeEntry | null>(null);  const currentMonthStr = new Date().toISOString().substring(0, 7);
-  const thisMonthName = new Date().toLocaleDateString('en-IN', { month: 'short' });
+  const [editing, setEditing] = useState<IncomeEntry | null>(null);
+
+  const currentMonthKey = new Date().toISOString().substring(0, 7);
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
+
+  // Dynamic Month Options (Current Month + past months)
+  const monthOptions = useMemo(() => {
+    const monthsSet = new Set<string>();
+    monthsSet.add(currentMonthKey);
+
+    const now = new Date();
+    for (let i = 1; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      monthsSet.add(d.toISOString().substring(0, 7));
+    }
+
+    [...allIncome, ...allExpenses, ...allDaily, ...allRentEntries].forEach(item => {
+      if (item.date) {
+        const mKey = item.date.substring(0, 7);
+        if (mKey.length === 7 && mKey.includes('-')) monthsSet.add(mKey);
+      }
+    });
+
+    return Array.from(monthsSet).sort().reverse().map(key => {
+      const [y, m] = key.split('-');
+      const d = new Date(parseInt(y), parseInt(m) - 1, 1);
+      const label = d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+      return { key, label };
+    });
+  }, [allIncome, allExpenses, allDaily, allRentEntries, currentMonthKey]);
+
+  const selectedMonthLabel = useMemo(() => {
+    const found = monthOptions.find(m => m.key === selectedMonth);
+    return found ? found.label : selectedMonth;
+  }, [selectedMonth, monthOptions]);
 
   // Bank Balances & Cashflow Calculation per Bank
   const bankStats = useMemo(() => {
@@ -58,19 +91,19 @@ export default function IncomePage() {
 
       const totalExp = genExp + dailyExp;
 
-      // Current Month Specific Stats
+      // Selected Month Specific Stats
       const monthInc = allIncome
-        .filter(i => (i.bankAccount || 'HDFC Bank') === b && (i.date || '').substring(0, 7) === currentMonthStr)
+        .filter(i => (i.bankAccount || 'HDFC Bank') === b && (i.date || '').substring(0, 7) === selectedMonth)
         .reduce((sum, i) => sum + i.amount, 0) +
         allRentEntries
-        .filter(r => (r.bankAccount || 'HDFC Bank') === b && (r.date || '').substring(0, 7) === currentMonthStr)
+        .filter(r => (r.bankAccount || 'HDFC Bank') === b && (r.date || '').substring(0, 7) === selectedMonth)
         .reduce((sum, r) => sum + r.amount, 0);
 
       const monthExp = allExpenses
-        .filter(e => (e.bankAccount || 'HDFC Bank') === b && (e.date || '').substring(0, 7) === currentMonthStr)
+        .filter(e => (e.bankAccount || 'HDFC Bank') === b && (e.date || '').substring(0, 7) === selectedMonth)
         .reduce((sum, e) => sum + e.amount, 0) +
         allDaily
-        .filter(d => (d.bankAccount || 'HDFC Bank') === b && (d.date || '').substring(0, 7) === currentMonthStr)
+        .filter(d => (d.bankAccount || 'HDFC Bank') === b && (d.date || '').substring(0, 7) === selectedMonth)
         .reduce((sum, d) => sum + d.amount, 0);
 
       result[b] = {
@@ -84,7 +117,7 @@ export default function IncomePage() {
     });
 
     return result;
-  }, [allIncome, allExpenses, allDaily, allRentEntries, allRentExpenses, currentMonthStr]);
+  }, [allIncome, allExpenses, allDaily, allRentEntries, allRentExpenses, selectedMonth]);
 
   // Filtered Income List based on selectedBank filter with Date & Time sorting
   const income = useMemo(() => {
@@ -183,9 +216,25 @@ export default function IncomePage() {
 
       {/* 3 SEPARATE BANK BALANCE & CASHFLOW CARDS */}
       <div>
-        <h2 className="text-sm font-bold uppercase tracking-wider text-white/50 mb-3 flex items-center gap-2">
-          🏦 Separate Bank Balances & Net Position
-        </h2>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-white/50 flex items-center gap-2">
+            🏦 Separate Bank Balances & Net Position
+          </h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-purple-300 font-semibold">📅 Select Month:</span>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-[#141426] border border-purple-500/40 text-purple-300 text-xs font-bold px-3 py-1.5 rounded-xl shadow-lg focus:outline-none focus:ring-1 focus:ring-purple-400"
+            >
+              {monthOptions.map(m => (
+                <option key={m.key} value={m.key} className="bg-[#141426] text-white">
+                  {m.label} {m.key === currentMonthKey ? '(Current)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             { name: 'HDFC Bank', color: 'from-blue-900/40 to-indigo-950/60', border: 'border-blue-500/30', text: 'text-blue-400', badge: 'bg-blue-500/20 text-blue-300' },
@@ -219,11 +268,11 @@ export default function IncomePage() {
                     </span>
                   </div>
 
-                  {/* Middle: Current Month Balance (Salary/Income Added - Expenses) */}
+                  {/* Middle: Selected Month Balance (Salary/Income Added - Expenses) */}
                   <div className="bg-black/30 border border-white/10 p-3 rounded-xl space-y-1">
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-bold text-purple-300 flex items-center gap-1">
-                        ⚡ {thisMonthName} Month Balance
+                        ⚡ {selectedMonthLabel} Balance
                       </span>
                       <span className={`text-sm font-bold ${stats.monthBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                         {stats.monthBalance >= 0 ? '+' : ''}{formatCurrency(stats.monthBalance, currency)}
@@ -243,6 +292,8 @@ export default function IncomePage() {
                     </span>
                   </div>
 
+                  {/* Footer: Net Position */}
+                  <div className="pt-2 border-t border-white/10 flex justify-between items-center">
                     <span className="text-xs font-bold text-gray-300 uppercase">Net Position</span>
                     <span className={`text-lg font-bold ${stats.net >= 0 ? bank.text : 'text-rose-400'}`}>
                       {formatCurrency(stats.net, currency)}
@@ -276,54 +327,54 @@ export default function IncomePage() {
       {/* OVERVIEW METRICS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: `Total Monthly Income (${selectedBank})`, val: formatCurrency(totalMonthly, currency) },
-          { label: 'Highest Source', val: highestSource },
-          { label: 'Income Streams', val: totalCount },
-        ].map(m => (
-          <div key={m.label} className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 shadow-lg">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{m.label}</h3>
-            <p className="text-2xl font-bold mt-1 text-emerald-400">{m.val}</p>
+          { label: 'Total Monthly Income', value: formatCurrency(totalMonthly, currency), sub: `Across ${totalCount} stream(s)` },
+          { label: 'Highest Source', value: highestSource, sub: 'Top earning category' },
+          { label: 'Income Streams', value: totalCount.toString(), sub: 'Active revenue sources' },
+        ].map((m, i) => (
+          <div key={i} className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple-600 to-purple-400" />
+            <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">{m.label}</p>
+            <p className="text-2xl font-bold text-white mt-1">{m.value}</p>
+            <p className="text-xs text-purple-400 mt-1 font-medium">{m.sub}</p>
           </div>
         ))}
       </div>
 
       {/* CHARTS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300 mb-4">Income Category Breakdown</h3>
-          <div className="w-2/3 mx-auto">
-            <Doughnut data={donutData} options={{ plugins: { legend: { position: 'right', labels: { color: '#fff' } } } }} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 space-y-3">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Income Category Breakdown</h3>
+          <div className="h-[220px] flex items-center justify-center">
+            <Doughnut data={donutData} options={{ ...chartOptions, maintainAspectRatio: false }} />
           </div>
         </div>
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300 mb-4">6-Month Trend</h3>
-          <Line data={trendData} options={chartOptions} />
+
+        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 space-y-3">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">6-Month Trend</h3>
+          <div className="h-[220px]">
+            <Line data={trendData} options={{ ...chartOptions, maintainAspectRatio: false }} />
+          </div>
         </div>
       </div>
 
-      {/* INCOME STREAMS TABLE */}
-      <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-white">
-            Income Streams ({selectedBank === 'All' ? 'All Accounts' : selectedBank})
-          </h3>
-          <span className="text-xs text-gray-400 font-mono">Total Streams: {income.length}</span>
+      {/* INCOME TABLE */}
+      <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-6 space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-bold text-white">All Income Streams</h3>
+          <span className="text-xs text-gray-400 bg-white/5 px-3 py-1 rounded-full font-semibold">
+            {income.length} Streams Logged
+          </span>
         </div>
 
         {income.length === 0 ? (
-          <div className="text-center py-10 space-y-3">
-            <div className="text-4xl">💸</div>
-            <p className="text-gray-400 text-sm">No income streams found for {selectedBank}.</p>
-            <button
-              onClick={() => { setEditing(null); setModalOpen(true); }}
-              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-500 rounded-xl text-xs font-bold"
-            >
-              + Add First Income
-            </button>
+          <div className="text-center py-12 text-gray-400 space-y-3">
+            <Wallet className="mx-auto text-purple-400/50" size={48} />
+            <p className="text-base font-semibold">No income streams found for {selectedBank}</p>
+            <p className="text-xs text-gray-500">Click &quot;Add Income&quot; above to log salary, freelance earnings or dividends.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+            <table className="w-full text-left text-sm text-gray-300">
               <thead>
                 <tr className="text-gray-400 text-xs uppercase font-bold border-b border-white/[0.07] bg-[#141426]">
                   <th className="p-3 w-10 text-center text-white/40">#</th>
@@ -341,9 +392,19 @@ export default function IncomePage() {
                   <tr key={i.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="p-3 text-center text-xs font-mono text-white/40 font-bold">#{idx + 1}</td>
                     <td className="p-3">
-                      <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap">
-                        🏦 {i.bankAccount || 'HDFC Bank'}
-                      </span>
+                      <select
+                        value={i.bankAccount || 'HDFC Bank'}
+                        onChange={(e) => {
+                          store.upsertIncome({ ...i, bankAccount: e.target.value });
+                          refresh();
+                        }}
+                        className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-xl cursor-pointer focus:outline-none focus:ring-1 focus:ring-purple-400"
+                        title="Click to change Bank Account"
+                      >
+                        <option value="HDFC Bank" className="bg-[#141426] text-white">🏦 HDFC Bank</option>
+                        <option value="ICICI Bank" className="bg-[#141426] text-white">🏦 ICICI Bank</option>
+                        <option value="SBI Bank" className="bg-[#141426] text-white">🏦 SBI Bank</option>
+                      </select>
                     </td>
                     <td className="p-3 font-semibold text-white">{i.name}</td>
                     <td className="p-3 text-emerald-400 font-bold">{formatCurrency(i.amount, currency)}</td>
