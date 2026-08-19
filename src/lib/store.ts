@@ -1,7 +1,8 @@
-// FinanceOS v2 — localStorage Data Store with Supabase sync layer
+// FinanceOS v2 — localStorage Data Store with Supabase real-time sync layer
 'use client';
 
 import { AppState, Account } from './types';
+import { pushStateToSupabase, pullStateFromSupabase, subscribeToRealtimeState, isSupabaseConfigured } from './supabase';
 
 const STORAGE_KEY = 'financeos_v2';
 
@@ -150,6 +151,26 @@ class Store {
         }
         this.save();
       }
+
+      // Supabase Initial Hydration & Realtime Subscription
+      if (isSupabaseConfigured) {
+        pullStateFromSupabase().then(remoteState => {
+          if (remoteState) {
+            this.importFullState(remoteState);
+            this.notify();
+          } else {
+            // First time connecting: upload local state to Supabase
+            pushStateToSupabase(this.state);
+          }
+        }).catch(() => {});
+
+        subscribeToRealtimeState(remoteState => {
+          if (remoteState) {
+            this.importFullState(remoteState);
+            this.notify();
+          }
+        });
+      }
     } catch {
       // use defaults
     }
@@ -175,6 +196,11 @@ class Store {
   pushToCloud() {
     if (typeof window === 'undefined') return;
     try {
+      // 0. Push to Supabase Real-time Cloud Database
+      if (isSupabaseConfigured) {
+        pushStateToSupabase(this.state).catch(() => {});
+      }
+
       // 1. Push to server cloud endpoint /api/sync
       fetch('/api/sync', {
         method: 'POST',

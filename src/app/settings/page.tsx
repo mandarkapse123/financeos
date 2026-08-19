@@ -333,13 +333,50 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Supabase Realtime Cloud Backend */}
+        <div className="bg-gradient-to-r from-emerald-950/40 via-[#0e0e1c] to-purple-950/40 border border-emerald-500/30 rounded-2xl overflow-hidden shadow-xl">
+          <SectionHeader icon={Database} title="Supabase Real-Time Database (Multi-Device Backend)" />
+          <div className="p-4 border-b border-white/[0.07] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <p className="font-semibold text-sm text-emerald-300">Connected to Supabase (PostgreSQL)</p>
+              </div>
+              <p className="text-xs text-gray-400 mt-1 font-mono">https://vcuvteccdxvgxqokyytp.supabase.co</p>
+            </div>
+            <div className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg font-medium">
+              ⚡ WebSockets Realtime Active
+            </div>
+          </div>
+          <div className="p-4 bg-white/[0.02] border-b border-white/[0.07] space-y-2">
+            <p className="text-xs font-bold text-white flex items-center gap-1.5">
+              <span>📱</span> Instant iPhone Back-Tap / Action Button Endpoint:
+            </p>
+            <div className="bg-black/60 p-2.5 rounded-xl border border-white/10 font-mono text-[11px] text-purple-300 flex items-center justify-between">
+              <span>https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&note=Lunch</span>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText('https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&note=Lunch');
+                  showToast('📋 Endpoint URL copied!', 'success');
+                }}
+                className="px-2 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-md text-[10px] font-semibold"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400">
+              In Apple Shortcuts: Add <strong>"Get Contents of URL"</strong> &rarr; Method: <strong>POST or GET</strong> to the endpoint above. Logs expenses in &lt; 100ms!
+            </p>
+          </div>
+        </div>
+
         {/* Google Apps Script & Shortcuts */}
         <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
           <SectionHeader icon={Smartphone} title="Google Sheet & iPhone Back Tap Sync" />
           <div className="p-4 border-b border-white/[0.07] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <p className="font-medium text-sm">Google Apps Script Web App URL</p>
-              <p className="text-xs text-gray-400 mt-0.5">Fetches and syncs entries directly from your backend Google Sheet.</p>
+              <p className="text-xs text-gray-400 mt-0.5">Optional: Keep Google Sheet as a secondary mirror/backup.</p>
             </div>
             <input
               type="text"
