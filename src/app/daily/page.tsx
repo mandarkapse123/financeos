@@ -48,7 +48,7 @@ export default function DailyPage() {
     const signature = `${dateStr}_${d.amount}_${catLower}_${noteLower}`;
 
     // Skip if explicitly deleted by user in FinanceOS!
-    if (deletedList.includes(d.id) || (noteLower && deletedList.includes(signature))) {
+    if (deletedList.includes(d.id) || deletedList.includes(signature)) {
       return false;
     }
 

@@ -623,10 +623,36 @@ class Store {
   }
 
   // Expenses & Daily Unified Sync & Deletion
+  purgeDeletedFromArrays() {
+    const deletedList = this.state.settings.deletedIds || [];
+    if (!deletedList || deletedList.length === 0) return;
+    const delSet = new Set(deletedList);
+
+    const getSig = (d?: string, amt?: number, cat?: string, note?: string) =>
+      `${(d || '').substring(0, 10)}_${amt || 0}_${(cat || '').toLowerCase()}_${(note || '').toLowerCase().trim()}`;
+
+    this.state.expenses = this.state.expenses.filter(e => {
+      if (delSet.has(e.id)) return false;
+      const sig = getSig(e.date, e.amount, e.category, e.note || e.name);
+      if (delSet.has(sig)) return false;
+      return true;
+    });
+
+    this.state.daily = this.state.daily.filter(d => {
+      if (delSet.has(d.id)) return false;
+      const sig = getSig(d.date, d.amount, d.category, d.note);
+      if (delSet.has(sig)) return false;
+      return true;
+    });
+  }
+
   getExpenses() { return this.getForAccount(this.state.expenses); }
   upsertExpense(item: AppState['expenses'][0]) {
-    // Find existing item before update
-    const oldItem = this.state.expenses.find(e => e.id === item.id) || this.state.daily.find(d => d.id === item.id);
+    const oldId = item.id;
+    const oldExpense = this.state.expenses.find(e => e.id === oldId);
+    const oldDaily = this.state.daily.find(d => d.id === oldId);
+    const oldItem = oldExpense || oldDaily;
+
     if (oldItem) {
       const oldDate = (oldItem.date || '').substring(0, 10);
       const newDate = (item.date || '').substring(0, 10);
@@ -646,34 +672,43 @@ class Store {
         // Blacklist old signature so syncSheetItems never restores the old date/amount from Google Sheet
         const oldSignature = `${oldDate}_${oldAmt}_${oldCat}_${oldNote}`;
         const deletedList = this.state.settings.deletedIds || [];
-        if (!deletedList.includes(oldSignature)) {
-          deletedList.push(oldSignature);
-          this.state.settings.deletedIds = deletedList;
-        }
-
-        // If ID was sheet_row_, convert to permanent user ID so sheet deletion filter won't wipe it
-        if (item.id.startsWith('sheet_row_')) {
+        if (!deletedList.includes(oldSignature)) deletedList.push(oldSignature);
+        if (oldId.startsWith('sheet_row_') && !deletedList.includes(oldId)) {
+          deletedList.push(oldId);
           item.id = `user_edit_${uid()}`;
-          if (oldItem.id) deletedList.push(oldItem.id);
         }
+        this.state.settings.deletedIds = deletedList;
       }
     }
 
-    this.state.expenses = this.upsert(this.state.expenses, item);
-    // 2-way update in daily array if matching item exists
-    const dIdx = this.state.daily.findIndex(d => d.id === (oldItem ? oldItem.id : item.id));
-    if (dIdx >= 0) {
-      this.state.daily[dIdx] = {
-        ...this.state.daily[dIdx],
-        id: item.id,
-        amount: item.amount,
-        category: item.category,
-        date: item.date,
-        note: item.note || item.name,
-        bankAccount: item.bankAccount,
-        kmReading: item.kmReading,
-      };
+    // Replace in expenses array
+    const expIdx = this.state.expenses.findIndex(e => e.id === oldId);
+    if (expIdx >= 0) {
+      this.state.expenses[expIdx] = item;
+    } else {
+      this.state.expenses.push({ ...item, accountId: this.state.currentAccountId });
     }
+
+    // Replace in daily array
+    const dailyIdx = this.state.daily.findIndex(d => d.id === oldId);
+    const dailyEntry: AppState['daily'][0] = {
+      id: item.id,
+      accountId: this.state.currentAccountId,
+      bankAccount: item.bankAccount,
+      amount: item.amount,
+      category: item.category,
+      paymentMethod: 'UPI',
+      date: item.date,
+      note: item.note || item.name,
+      kmReading: item.kmReading,
+    };
+    if (dailyIdx >= 0) {
+      this.state.daily[dailyIdx] = dailyEntry;
+    } else {
+      this.state.daily.push(dailyEntry);
+    }
+
+    this.purgeDeletedFromArrays();
     this.save();
   }
   deleteExpense(id: string) {
@@ -731,7 +766,11 @@ class Store {
   // Daily
   getDaily() { return this.getForAccount(this.state.daily); }
   upsertDaily(item: AppState['daily'][0]) {
-    const oldItem = this.state.daily.find(d => d.id === item.id) || this.state.expenses.find(e => e.id === item.id);
+    const oldId = item.id;
+    const oldDaily = this.state.daily.find(d => d.id === oldId);
+    const oldExpense = this.state.expenses.find(e => e.id === oldId);
+    const oldItem = oldDaily || oldExpense;
+
     if (oldItem) {
       const oldDate = (oldItem.date || '').substring(0, 10);
       const newDate = (item.date || '').substring(0, 10);
@@ -749,34 +788,43 @@ class Store {
 
         const oldSignature = `${oldDate}_${oldAmt}_${oldCat}_${oldNote}`;
         const deletedList = this.state.settings.deletedIds || [];
-        if (!deletedList.includes(oldSignature)) {
-          deletedList.push(oldSignature);
-          this.state.settings.deletedIds = deletedList;
-        }
-
-        if (item.id.startsWith('sheet_row_')) {
+        if (!deletedList.includes(oldSignature)) deletedList.push(oldSignature);
+        if (oldId.startsWith('sheet_row_') && !deletedList.includes(oldId)) {
+          deletedList.push(oldId);
           item.id = `user_edit_${uid()}`;
-          if (oldItem.id) deletedList.push(oldItem.id);
         }
+        this.state.settings.deletedIds = deletedList;
       }
     }
 
-    this.state.daily = this.upsert(this.state.daily, item);
-    // 2-way update in expenses array if matching item exists
-    const eIdx = this.state.expenses.findIndex(e => e.id === (oldItem ? oldItem.id : item.id));
-    if (eIdx >= 0) {
-      this.state.expenses[eIdx] = {
-        ...this.state.expenses[eIdx],
-        id: item.id,
-        amount: item.amount,
-        category: item.category,
-        date: item.date,
-        note: item.note,
-        name: item.note || item.category,
-        bankAccount: item.bankAccount,
-        kmReading: item.kmReading,
-      };
+    // Replace in daily array
+    const dailyIdx = this.state.daily.findIndex(d => d.id === oldId);
+    if (dailyIdx >= 0) {
+      this.state.daily[dailyIdx] = item;
+    } else {
+      this.state.daily.push({ ...item, accountId: this.state.currentAccountId });
     }
+
+    // Replace in expenses array
+    const expIdx = this.state.expenses.findIndex(e => e.id === oldId);
+    const expEntry: AppState['expenses'][0] = {
+      id: item.id,
+      accountId: this.state.currentAccountId,
+      bankAccount: item.bankAccount,
+      amount: item.amount,
+      category: item.category,
+      name: item.note || item.category,
+      date: item.date,
+      note: item.note,
+      kmReading: item.kmReading,
+    };
+    if (expIdx >= 0) {
+      this.state.expenses[expIdx] = expEntry;
+    } else {
+      this.state.expenses.push(expEntry);
+    }
+
+    this.purgeDeletedFromArrays();
     this.save();
   }
   deleteDaily(id: string) { this.deleteExpense(id); }

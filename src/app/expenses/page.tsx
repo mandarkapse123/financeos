@@ -34,7 +34,8 @@ export default function ExpensesPage() {
     ...(state.settings.customCategories || [])
   ];
 
-  // Combined expenses with STRICT DEDUPLICATION by (date + amount + category + note)
+  // Combined expenses with STRICT DEDUPLICATION and deletion filtering
+  const deletedList = state.settings.deletedIds || [];
   const seenKeys = new Set<string>();
   const rawCombined = [
     ...expenses,
@@ -52,10 +53,16 @@ export default function ExpensesPage() {
   ];
 
   const allCombinedExpenses = rawCombined.filter(e => {
+    if (!e || !e.amount) return false;
+    if (deletedList.includes(e.id)) return false;
     const dateStr = (e.date || '').substring(0, 10);
-    const key = `${dateStr}_${e.amount}_${(e.category || '').toLowerCase()}`;
-    if (seenKeys.has(key)) return false;
-    seenKeys.add(key);
+    const catLower = (e.category || '').toLowerCase();
+    const noteLower = (e.note || e.name || '').toLowerCase().trim();
+    const sig = `${dateStr}_${e.amount}_${catLower}_${noteLower}`;
+    if (deletedList.includes(sig)) return false;
+
+    if (seenKeys.has(e.id)) return false;
+    seenKeys.add(e.id);
     return true;
   }).sort((a, b) => {
     const dComp = (b.date || '').localeCompare(a.date || '');
