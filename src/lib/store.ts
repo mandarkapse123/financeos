@@ -563,6 +563,41 @@ class Store {
     this.save();
   }
 
+  // Remote Update Dispatcher (FinanceOS -> Google Sheet)
+  remoteUpdateRow(oldItem: { date?: string; amount?: number; category?: string; note?: string; name?: string; notes?: string; description?: string }, newItem: { date?: string; amount?: number; category?: string; note?: string; name?: string; notes?: string; description?: string; kmReading?: number }) {
+    if (!oldItem || !newItem) return;
+    const url = this.state.settings.endpoint;
+    if (!url) return;
+
+    try {
+      const oldDate = (oldItem.date || '').substring(0, 10);
+      const oldAmount = String(oldItem.amount || '');
+      const oldCategory = oldItem.category || '';
+      const oldNote = oldItem.note || oldItem.name || oldItem.notes || oldItem.description || '';
+
+      const newDate = (newItem.date || '').substring(0, 10);
+      const newAmount = String(newItem.amount || '');
+      const newCategory = newItem.category || '';
+      const newNote = newItem.note || newItem.name || newItem.notes || newItem.description || '';
+      const newKm = String(newItem.kmReading || '');
+
+      const query = new URLSearchParams({
+        action: 'updateRow',
+        oldDate,
+        oldAmount,
+        oldCategory,
+        oldNote,
+        newDate,
+        newAmount,
+        newCategory,
+        newNote,
+        newKm
+      }).toString();
+
+      fetch(`${url}${url.includes('?') ? '&' : '?'}${query}`, { mode: 'no-cors' }).catch(() => {});
+    } catch {}
+  }
+
   // Remote Deletion Dispatcher (FinanceOS -> Google Sheet)
   remoteDeleteRow(item: { date?: string; amount?: number; category?: string; note?: string; name?: string; notes?: string; description?: string }) {
     if (!item) return;
@@ -590,16 +625,51 @@ class Store {
   // Expenses & Daily Unified Sync & Deletion
   getExpenses() { return this.getForAccount(this.state.expenses); }
   upsertExpense(item: AppState['expenses'][0]) {
+    // Find existing item before update
+    const oldItem = this.state.expenses.find(e => e.id === item.id) || this.state.daily.find(d => d.id === item.id);
+    if (oldItem) {
+      const oldDate = (oldItem.date || '').substring(0, 10);
+      const newDate = (item.date || '').substring(0, 10);
+      const oldAmt = oldItem.amount;
+      const newAmt = item.amount;
+      const oldCat = (oldItem.category || '').toLowerCase();
+      const newCat = (item.category || '').toLowerCase();
+      const oldNote = (oldItem.note || ('name' in oldItem ? (oldItem as any).name : '') || '').toLowerCase().trim();
+      const newNote = (item.note || item.name || '').toLowerCase().trim();
+
+      const hasChanged = oldDate !== newDate || oldAmt !== newAmt || oldCat !== newCat || oldNote !== newNote;
+
+      if (hasChanged) {
+        // Dispatch 2-way edit to Google Sheet
+        this.remoteUpdateRow(oldItem, item);
+
+        // Blacklist old signature so syncSheetItems never restores the old date/amount from Google Sheet
+        const oldSignature = `${oldDate}_${oldAmt}_${oldCat}_${oldNote}`;
+        const deletedList = this.state.settings.deletedIds || [];
+        if (!deletedList.includes(oldSignature)) {
+          deletedList.push(oldSignature);
+          this.state.settings.deletedIds = deletedList;
+        }
+
+        // If ID was sheet_row_, convert to permanent user ID so sheet deletion filter won't wipe it
+        if (item.id.startsWith('sheet_row_')) {
+          item.id = `user_edit_${uid()}`;
+          if (oldItem.id) deletedList.push(oldItem.id);
+        }
+      }
+    }
+
     this.state.expenses = this.upsert(this.state.expenses, item);
     // 2-way update in daily array if matching item exists
-    const dIdx = this.state.daily.findIndex(d => d.id === item.id);
+    const dIdx = this.state.daily.findIndex(d => d.id === (oldItem ? oldItem.id : item.id));
     if (dIdx >= 0) {
       this.state.daily[dIdx] = {
         ...this.state.daily[dIdx],
+        id: item.id,
         amount: item.amount,
         category: item.category,
         date: item.date,
-        note: item.note,
+        note: item.note || item.name,
         bankAccount: item.bankAccount,
         kmReading: item.kmReading,
       };
@@ -661,12 +731,43 @@ class Store {
   // Daily
   getDaily() { return this.getForAccount(this.state.daily); }
   upsertDaily(item: AppState['daily'][0]) {
+    const oldItem = this.state.daily.find(d => d.id === item.id) || this.state.expenses.find(e => e.id === item.id);
+    if (oldItem) {
+      const oldDate = (oldItem.date || '').substring(0, 10);
+      const newDate = (item.date || '').substring(0, 10);
+      const oldAmt = oldItem.amount;
+      const newAmt = item.amount;
+      const oldCat = (oldItem.category || '').toLowerCase();
+      const newCat = (item.category || '').toLowerCase();
+      const oldNote = (oldItem.note || ('name' in oldItem ? (oldItem as any).name : '') || '').toLowerCase().trim();
+      const newNote = (item.note || '').toLowerCase().trim();
+
+      const hasChanged = oldDate !== newDate || oldAmt !== newAmt || oldCat !== newCat || oldNote !== newNote;
+
+      if (hasChanged) {
+        this.remoteUpdateRow(oldItem, item);
+
+        const oldSignature = `${oldDate}_${oldAmt}_${oldCat}_${oldNote}`;
+        const deletedList = this.state.settings.deletedIds || [];
+        if (!deletedList.includes(oldSignature)) {
+          deletedList.push(oldSignature);
+          this.state.settings.deletedIds = deletedList;
+        }
+
+        if (item.id.startsWith('sheet_row_')) {
+          item.id = `user_edit_${uid()}`;
+          if (oldItem.id) deletedList.push(oldItem.id);
+        }
+      }
+    }
+
     this.state.daily = this.upsert(this.state.daily, item);
     // 2-way update in expenses array if matching item exists
-    const eIdx = this.state.expenses.findIndex(e => e.id === item.id);
+    const eIdx = this.state.expenses.findIndex(e => e.id === (oldItem ? oldItem.id : item.id));
     if (eIdx >= 0) {
       this.state.expenses[eIdx] = {
         ...this.state.expenses[eIdx],
+        id: item.id,
         amount: item.amount,
         category: item.category,
         date: item.date,

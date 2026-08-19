@@ -492,7 +492,44 @@ function processRequest(e) {
       return ContentService.createTextOutput(JSON.stringify({ status: 'success', removed: removedCount })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // 2. Remote Row Deletion Handler (2-Way Delete Sync)
+    // 2. Remote Row Update Handler (2-Way Edit Sync)
+    if (p.action === 'updateRow' || p.action === 'editRow') {
+      const oldDate = String(p.oldDate || '').substring(0, 10);
+      const oldAmt = String(p.oldAmount || '').trim();
+      const oldCat = String(p.oldCategory || '').toLowerCase().trim();
+      const oldNote = String(p.oldNote || '').toLowerCase().trim();
+
+      const newDate = String(p.newDate || p.date || '');
+      const newAmt = String(p.newAmount || p.amount || '');
+      const newCat = String(p.newCategory || p.category || 'Expenses');
+      const newNote = String(p.newNote || p.note || '');
+      const newMethod = String(p.newMethod || p.method || 'UPI');
+      const newKm = String(p.newKm || p.kmReading || '');
+
+      const data = sh.getDataRange().getValues();
+      let updated = false;
+
+      for (let i = data.length - 1; i >= 1; i--) {
+        const row = data[i];
+        if (!row || row[1] === "" || row[1] === null) continue;
+        const rDate = String(row[0] || '').substring(0, 10);
+        const rAmt = String(row[1] || '').trim();
+        const rCat = String(row[2] || '').toLowerCase().trim();
+        const rNote = String(row[3] || '').toLowerCase().trim();
+
+        if (rAmt === oldAmt &&
+            (oldDate === "" || rDate === oldDate) &&
+            (oldCat === "" || rCat === oldCat) &&
+            (oldNote === "" || rNote === oldNote)) {
+          sh.getRange(i + 1, 1, 1, 6).setValues([[newDate || row[0], newAmt || row[1], newCat || row[2], newNote || row[3], newMethod || row[4], newKm || row[5]]]);
+          updated = true;
+          break;
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: 'success', updated: updated })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 3. Remote Row Deletion Handler (2-Way Delete Sync)
     if (p.action === 'deleteRow') {
       const targetDate = String(p.date || '').substring(0, 10);
       const targetAmt = String(p.amount || '').trim();
