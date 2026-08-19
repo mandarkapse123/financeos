@@ -112,9 +112,9 @@ async function handleQuickAdd({
       rentEntries: [],
       rentExpenses: [],
       rentReceipts: [],
-      accounts: [{ id: 'default', name: 'Personal', type: 'personal', isDefault: true, currency: '₹' }],
+      accounts: [{ id: 'default', userId: 'default', name: 'Personal', type: 'personal', isDefault: true, currency: '₹', createdAt: new Date().toISOString() }],
       currentAccountId: 'default',
-      settings: { name: 'Mandar', currency: '₹', endpoint: '', openingBalances: {} },
+      settings: { name: 'Mandar', currency: '₹', endpoint: '', budgets: {}, openingBalances: {} },
     };
 
     stateToUpdate.expenses = [expenseEntry, ...(stateToUpdate.expenses || [])];

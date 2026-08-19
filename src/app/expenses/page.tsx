@@ -37,12 +37,13 @@ export default function ExpensesPage() {
   // Combined expenses with STRICT DEDUPLICATION and deletion filtering
   const deletedList = state.settings.deletedIds || [];
   const seenKeys = new Set<string>();
-  const rawCombined = [
+  const rawCombined: ExpenseEntry[] = [
     ...expenses,
     ...daily.map(d => ({
       id: d.id,
       accountId: d.accountId,
       bankAccount: d.bankAccount,
+      paidBy: d.paidBy,
       name: d.note || d.category,
       amount: d.amount,
       category: d.category,
