@@ -418,11 +418,14 @@ class Store {
     const accountId = this.state.currentAccountId;
     const deletedList = this.state.settings.deletedIds || [];
 
-    const getSignature = (dStr: string, amt: number, cat: string, note: string) =>
-      `${dStr}_${amt}_${(cat || '').toLowerCase()}_${(note || '').toLowerCase().trim()}`;
+    const getSignature = (dStr: string, amt: number, cat: string, note: string) => {
+      const c = (cat || '').toLowerCase().trim();
+      const n = (c === 'petrol' || c === 'fuel' || c === 'transport') ? '' : (note || '').toLowerCase().trim();
+      return `${dStr}_${amt}_${c}_${n}`;
+    };
 
     const existingDailySigs = new Set(this.state.daily.map(d => getSignature((d.date || '').substring(0, 10), d.amount, d.category || '', d.note || '')));
-    const existingExpenseSigs = new Set(this.state.expenses.map(e => getSignature((e.date || '').substring(0, 10), e.amount, e.category || '', e.name || e.note || '')));
+    const existingExpenseSigs = new Set(this.state.expenses.map(e => getSignature((e.date || '').substring(0, 10), e.amount, e.category || '', e.note || '')));
 
     let updated = false;
 
@@ -531,7 +534,7 @@ class Store {
     const initExpCount = this.state.expenses.length;
     this.state.expenses = this.state.expenses.filter(e => {
       if (e.id.startsWith('sheet_row_')) {
-        const sig = getSignature(parseSafeDate(e.date), e.amount, e.category, e.note || e.name || '');
+        const sig = getSignature(parseSafeDate(e.date), e.amount, e.category, e.note || '');
         if (!remoteSheetSigs.has(sig)) return false;
       }
       return true;
