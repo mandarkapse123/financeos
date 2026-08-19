@@ -374,7 +374,7 @@ export default function DailyPage() {
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <h3 className="text-lg font-bold">{editing ? 'Edit Daily Log' : 'Log Daily Expense'}</h3>
-            <form onSubmit={handleSaveDaily} className="space-y-3 text-sm">
+            <form key={editing?.id || 'new_daily'} onSubmit={handleSaveDaily} className="space-y-3 text-sm">
               <div>
                 <label className="text-xs text-purple-300 font-semibold block mb-1">🏦 Bank Account</label>
                 <select
@@ -445,7 +445,7 @@ export default function DailyPage() {
                   type="date"
                   name="date"
                   required
-                  defaultValue={editing?.date || new Date().toISOString().split('T')[0]}
+                  defaultValue={(editing?.date || new Date().toISOString()).split('T')[0].split(' ')[0]}
                   className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
                 />
               </div>

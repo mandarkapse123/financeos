@@ -27,12 +27,13 @@ export default function IncomePage() {
 
   const [selectedBank, setSelectedBank] = useState<'All' | 'HDFC Bank' | 'ICICI Bank' | 'SBI Bank'>('All');
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<IncomeEntry | null>(null);
+  const [editing, setEditing] = useState<IncomeEntry | null>(null);  const currentMonthStr = new Date().toISOString().substring(0, 7);
+  const thisMonthName = new Date().toLocaleDateString('en-IN', { month: 'short' });
 
   // Bank Balances & Cashflow Calculation per Bank
   const bankStats = useMemo(() => {
     const banks = ['HDFC Bank', 'ICICI Bank', 'SBI Bank'] as const;
-    const result: Record<string, { income: number; expenses: number; net: number }> = {};
+    const result: Record<string, { income: number; expenses: number; net: number; monthIncome: number; monthExpenses: number; monthBalance: number }> = {};
 
     banks.forEach(b => {
       // Income logged to this bank
@@ -40,14 +41,13 @@ export default function IncomePage() {
         .filter(i => (i.bankAccount || 'HDFC Bank') === b)
         .reduce((sum, i) => sum + i.amount, 0);
 
-      // Rent entries logged to this bank
       const rentInc = allRentEntries
         .filter(r => (r.bankAccount || 'HDFC Bank') === b)
         .reduce((sum, r) => sum + r.amount, 0);
 
       const totalInc = bankInc + rentInc;
 
-      // Expenses logged to this bank (General + Daily + Rent Expenses)
+      // Expenses logged to this bank
       const genExp = allExpenses
         .filter(e => (e.bankAccount || 'HDFC Bank') === b)
         .reduce((sum, e) => sum + e.amount, 0);
@@ -58,15 +58,33 @@ export default function IncomePage() {
 
       const totalExp = genExp + dailyExp;
 
+      // Current Month Specific Stats
+      const monthInc = allIncome
+        .filter(i => (i.bankAccount || 'HDFC Bank') === b && (i.date || '').substring(0, 7) === currentMonthStr)
+        .reduce((sum, i) => sum + i.amount, 0) +
+        allRentEntries
+        .filter(r => (r.bankAccount || 'HDFC Bank') === b && (r.date || '').substring(0, 7) === currentMonthStr)
+        .reduce((sum, r) => sum + r.amount, 0);
+
+      const monthExp = allExpenses
+        .filter(e => (e.bankAccount || 'HDFC Bank') === b && (e.date || '').substring(0, 7) === currentMonthStr)
+        .reduce((sum, e) => sum + e.amount, 0) +
+        allDaily
+        .filter(d => (d.bankAccount || 'HDFC Bank') === b && (d.date || '').substring(0, 7) === currentMonthStr)
+        .reduce((sum, d) => sum + d.amount, 0);
+
       result[b] = {
         income: totalInc,
         expenses: totalExp,
-        net: totalInc - totalExp
+        net: totalInc - totalExp,
+        monthIncome: monthInc,
+        monthExpenses: monthExp,
+        monthBalance: monthInc - monthExp
       };
     });
 
     return result;
-  }, [allIncome, allExpenses, allDaily, allRentEntries, allRentExpenses]);
+  }, [allIncome, allExpenses, allDaily, allRentEntries, allRentExpenses, currentMonthStr]);
 
   // Filtered Income List based on selectedBank filter with Date & Time sorting
   const income = useMemo(() => {
@@ -121,7 +139,7 @@ export default function IncomePage() {
     }
   };
 
-  const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSaveIncome = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const item: IncomeEntry = {
@@ -174,7 +192,7 @@ export default function IncomePage() {
             { name: 'ICICI Bank', color: 'from-amber-950/40 to-orange-950/60', border: 'border-amber-500/30', text: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-300' },
             { name: 'SBI Bank', color: 'from-emerald-950/40 to-teal-950/60', border: 'border-emerald-500/30', text: 'text-emerald-400', badge: 'bg-emerald-500/20 text-emerald-300' }
           ].map(bank => {
-            const stats = bankStats[bank.name] || { income: 0, expenses: 0, net: 0 };
+            const stats = bankStats[bank.name] || { income: 0, expenses: 0, net: 0, monthIncome: 0, monthExpenses: 0, monthBalance: 0 };
             const isSelected = selectedBank === bank.name;
 
             return (
@@ -192,20 +210,39 @@ export default function IncomePage() {
                   {isSelected && <span className="text-xs bg-purple-500 text-white font-bold px-2 py-0.5 rounded-full">Active Filter</span>}
                 </div>
 
-                <div className="space-y-2 mt-4">
+                <div className="space-y-3 mt-3">
+                  {/* Top: Total Bank Income */}
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-400 font-medium">Bank Income</span>
+                    <span className="text-xs text-gray-400 font-medium">Bank Income (Total)</span>
                     <span className="text-sm font-semibold text-emerald-400 flex items-center gap-1">
                       <ArrowUpRight size={14} /> +{formatCurrency(stats.income, currency)}
                     </span>
                   </div>
+
+                  {/* Middle: Current Month Balance (Salary/Income Added - Expenses) */}
+                  <div className="bg-black/30 border border-white/10 p-3 rounded-xl space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-purple-300 flex items-center gap-1">
+                        ⚡ {thisMonthName} Month Balance
+                      </span>
+                      <span className={`text-sm font-bold ${stats.monthBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {stats.monthBalance >= 0 ? '+' : ''}{formatCurrency(stats.monthBalance, currency)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] text-gray-400">
+                      <span>Salary/Inc: +{formatCurrency(stats.monthIncome, currency)}</span>
+                      <span>Exp: -{formatCurrency(stats.monthExpenses, currency)}</span>
+                    </div>
+                  </div>
+
+                  {/* Bottom-Middle: Total Bank Expenses */}
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-400 font-medium">Bank Expenses</span>
+                    <span className="text-xs text-gray-400 font-medium">Bank Expenses (Total)</span>
                     <span className="text-sm font-semibold text-rose-400 flex items-center gap-1">
                       <ArrowDownRight size={14} /> -{formatCurrency(stats.expenses, currency)}
                     </span>
                   </div>
-                  <div className="pt-2 border-t border-white/10 flex justify-between items-center">
+
                     <span className="text-xs font-bold text-gray-300 uppercase">Net Position</span>
                     <span className={`text-lg font-bold ${stats.net >= 0 ? bank.text : 'text-rose-400'}`}>
                       {formatCurrency(stats.net, currency)}
@@ -348,7 +385,7 @@ export default function IncomePage() {
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl">
             <h2 className="text-lg font-bold text-white">{editing ? 'Edit Income' : 'Add Income Stream'}</h2>
-            <form onSubmit={handleSave} className="space-y-4 text-sm">
+            <form key={editing?.id || 'new_inc'} onSubmit={handleSaveIncome} className="space-y-4 text-sm">
               <div>
                 <label className="block text-xs font-semibold text-purple-300 uppercase tracking-wider mb-1">🏦 Bank Account</label>
                 <select

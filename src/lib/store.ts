@@ -579,9 +579,25 @@ class Store {
     } catch {}
   }
 
-  // Expenses & Daily Unified Deletion
+  // Expenses & Daily Unified Sync & Deletion
   getExpenses() { return this.getForAccount(this.state.expenses); }
-  upsertExpense(item: AppState['expenses'][0]) { this.state.expenses = this.upsert(this.state.expenses, item); this.save(); }
+  upsertExpense(item: AppState['expenses'][0]) {
+    this.state.expenses = this.upsert(this.state.expenses, item);
+    // 2-way update in daily array if matching item exists
+    const dIdx = this.state.daily.findIndex(d => d.id === item.id);
+    if (dIdx >= 0) {
+      this.state.daily[dIdx] = {
+        ...this.state.daily[dIdx],
+        amount: item.amount,
+        category: item.category,
+        date: item.date,
+        note: item.note,
+        bankAccount: item.bankAccount,
+        kmReading: item.kmReading,
+      };
+    }
+    this.save();
+  }
   deleteExpense(id: string) {
     const target = this.state.expenses.find(e => e.id === id) || this.state.daily.find(d => d.id === id);
     if (target) {
@@ -636,7 +652,24 @@ class Store {
 
   // Daily
   getDaily() { return this.getForAccount(this.state.daily); }
-  upsertDaily(item: AppState['daily'][0]) { this.state.daily = this.upsert(this.state.daily, item); this.save(); }
+  upsertDaily(item: AppState['daily'][0]) {
+    this.state.daily = this.upsert(this.state.daily, item);
+    // 2-way update in expenses array if matching item exists
+    const eIdx = this.state.expenses.findIndex(e => e.id === item.id);
+    if (eIdx >= 0) {
+      this.state.expenses[eIdx] = {
+        ...this.state.expenses[eIdx],
+        amount: item.amount,
+        category: item.category,
+        date: item.date,
+        note: item.note,
+        name: item.note || item.category,
+        bankAccount: item.bankAccount,
+        kmReading: item.kmReading,
+      };
+    }
+    this.save();
+  }
   deleteDaily(id: string) { this.deleteExpense(id); }
 
   // Rent
