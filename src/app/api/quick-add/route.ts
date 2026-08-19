@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const amountStr = searchParams.get('amount') || searchParams.get('amt');
     if (!amountStr) {
-      return NextResponse.json({ error: 'Missing amount parameter. Example: ?amount=250&category=Food&note=Lunch' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing amount parameter. Example: ?amount=250&category=Food&user=Mandar&note=Lunch' }, { status: 400 });
     }
 
     const amount = parseFloat(amountStr);
@@ -24,11 +24,12 @@ export async function GET(request: Request) {
     const category = searchParams.get('category') || searchParams.get('cat') || 'Expenses';
     const note = searchParams.get('note') || searchParams.get('description') || '';
     const bankAccount = searchParams.get('bank') || searchParams.get('bankAccount') || 'HDFC Bank';
+    const paidBy = searchParams.get('user') || searchParams.get('member') || searchParams.get('paidBy') || searchParams.get('by') || 'Mandar';
     const dateStr = searchParams.get('date') || new Date().toISOString().substring(0, 10);
     const kmStr = searchParams.get('km') || searchParams.get('kmReading');
     const kmReading = kmStr ? parseFloat(kmStr) : undefined;
 
-    return await handleQuickAdd({ amount, category, note, bankAccount, dateStr, kmReading });
+    return await handleQuickAdd({ amount, category, note, bankAccount, paidBy, dateStr, kmReading });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 });
   }
@@ -45,10 +46,11 @@ export async function POST(request: Request) {
     const category = body.category || body.cat || 'Expenses';
     const note = body.note || body.description || '';
     const bankAccount = body.bank || body.bankAccount || 'HDFC Bank';
+    const paidBy = body.user || body.member || body.paidBy || body.by || 'Mandar';
     const dateStr = body.date || new Date().toISOString().substring(0, 10);
     const kmReading = body.kmReading || body.km ? parseFloat(body.kmReading || body.km) : undefined;
 
-    return await handleQuickAdd({ amount, category, note, bankAccount, dateStr, kmReading });
+    return await handleQuickAdd({ amount, category, note, bankAccount, paidBy, dateStr, kmReading });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 });
   }
@@ -59,6 +61,7 @@ async function handleQuickAdd({
   category,
   note,
   bankAccount,
+  paidBy,
   dateStr,
   kmReading,
 }: {
@@ -66,6 +69,7 @@ async function handleQuickAdd({
   category: string;
   note: string;
   bankAccount: string;
+  paidBy: string;
   dateStr: string;
   kmReading?: number;
 }) {
@@ -74,6 +78,7 @@ async function handleQuickAdd({
     id,
     accountId: 'default',
     bankAccount,
+    paidBy,
     name: category === 'Petrol' ? 'Petrol Fill' : (note || category),
     amount,
     category,
@@ -86,6 +91,7 @@ async function handleQuickAdd({
     id,
     accountId: 'default',
     bankAccount,
+    paidBy,
     amount,
     category,
     paymentMethod: 'UPI',
@@ -119,7 +125,7 @@ async function handleQuickAdd({
 
   return NextResponse.json({
     status: 'success',
-    message: `✅ Logged ₹${amount.toLocaleString('en-IN')} for ${category} (${bankAccount})`,
+    message: `✅ Logged ₹${amount.toLocaleString('en-IN')} for ${category} by ${paidBy} (${bankAccount})`,
     entry: expenseEntry,
   });
 }

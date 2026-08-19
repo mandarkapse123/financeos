@@ -34,33 +34,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {}
 
-      // 2. Also fetch Google Apps Script backend if configured
-      const endpoint = store.getState().settings.endpoint;
-      if (endpoint) {
-        try {
-          const res = await fetch(endpoint, { method: 'GET', mode: 'cors' });
-          const json = await res.json();
-          if (json && json.fullState) {
-            store.importFullState(json.fullState);
-          }
-
-          let items: any[] = [];
-          if (Array.isArray(json)) items = json;
-          else if (json && Array.isArray(json.rows)) items = json.rows;
-          else if (json && Array.isArray(json.data)) items = json.data;
-
-          store.syncSheetItems(items);
-        } catch (err) {}
-      }
-
       refresh();
     };
 
     // Initial sync on app load
     autoSync();
 
-    // Polling sync every 4 seconds for instant real-time multi-device sync
-    const intervalId = setInterval(autoSync, 4000);
+    // Occasional fallback sync every 15 seconds (WebSockets handle instant real-time updates)
+    const intervalId = setInterval(autoSync, 15000);
 
     return () => {
       unsub();

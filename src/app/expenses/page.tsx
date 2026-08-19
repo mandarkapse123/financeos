@@ -132,6 +132,7 @@ export default function ExpensesPage() {
       id: editing?.id || generateId(),
       accountId: state.currentAccountId,
       bankAccount: (formData.get('bankAccount') as string) || 'HDFC Bank',
+      paidBy: (formData.get('paidBy') as string) || state.settings.name || 'Mandar',
       name: formData.get('name') as string,
       amount: parseFloat(formData.get('amount') as string),
       category: cat,
@@ -422,9 +423,16 @@ export default function ExpensesPage() {
                     <td className="p-4 text-center text-xs font-mono text-white/40 font-bold">#{idx + 1}</td>
                     <td className="p-4 text-gray-400 text-xs">{formatDate(exp.date)}</td>
                     <td className="p-4">
-                      <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap">
-                        🏦 {exp.bankAccount || 'HDFC Bank'}
-                      </span>
+                      <div className="flex flex-col gap-1 items-start">
+                        <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap">
+                          🏦 {exp.bankAccount || 'HDFC Bank'}
+                        </span>
+                        {exp.paidBy && (
+                          <span className="bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                            👤 {exp.paidBy}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 font-bold">{exp.name || exp.note || '-'}</td>
                     <td className="p-4">
@@ -493,17 +501,29 @@ export default function ExpensesPage() {
                 />
               </div>
 
-              <div>
-                <label className="text-xs text-purple-300 font-semibold block mb-1">🏦 Bank Account</label>
-                <select
-                  name="bankAccount"
-                  defaultValue={editing?.bankAccount || 'HDFC Bank'}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-medium"
-                >
-                  <option value="HDFC Bank" className="bg-[#141426]">🏦 HDFC Bank</option>
-                  <option value="ICICI Bank" className="bg-[#141426]">🏦 ICICI Bank</option>
-                  <option value="SBI Bank" className="bg-[#141426]">🏦 SBI Bank</option>
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Bank Account</label>
+                  <select
+                    name="bankAccount"
+                    defaultValue={editing?.bankAccount || 'HDFC Bank'}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
+                  >
+                    <option value="HDFC Bank">🏦 HDFC Bank</option>
+                    <option value="ICICI Bank">🏦 ICICI Bank</option>
+                    <option value="SBI Bank">🏦 SBI Bank</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Logged By (Member)</label>
+                  <input
+                    type="text"
+                    name="paidBy"
+                    defaultValue={editing?.paidBy || state.settings.name || 'Mandar'}
+                    placeholder="e.g. Mandar, Pooja"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

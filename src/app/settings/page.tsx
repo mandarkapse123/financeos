@@ -4,8 +4,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../../lib/store-context';
 import { generateId } from '../../lib/store';
 import { downloadFile } from '../../lib/utils';
+import { pushStateToSupabase, pullStateFromSupabase } from '../../lib/supabase';
 import {
-  User, Wallet, Smartphone, Database, Trash2, Plus, Upload, Download, RefreshCw, X, ShieldAlert, FileJson, Pencil, Check
+  User, Wallet, Smartphone, Database, Trash2, Plus, Upload, Download, RefreshCw, X, ShieldAlert, FileJson, Pencil, Check, Users, ArrowUpRight
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -192,6 +193,34 @@ export default function SettingsPage() {
     }
   };
 
+  const handlePushToSupabase = async () => {
+    try {
+      const ok = await pushStateToSupabase(state);
+      if (ok) {
+        showToast('🚀 All FinanceOS records successfully migrated & pushed to Supabase!', 'success');
+      } else {
+        showToast('Error pushing data to Supabase. Check database tables.', 'error');
+      }
+    } catch {
+      showToast('Supabase connection error', 'error');
+    }
+  };
+
+  const handlePullFromSupabase = async () => {
+    try {
+      const remote = await pullStateFromSupabase();
+      if (remote) {
+        store.importFullState(remote);
+        refresh();
+        showToast('📥 Loaded latest records from Supabase!', 'success');
+      } else {
+        showToast('No records found in Supabase yet.', 'info');
+      }
+    } catch {
+      showToast('Error pulling from Supabase', 'error');
+    }
+  };
+
   const SectionHeader = ({ icon: Icon, title }: { icon: any, title: string }) => (
     <div className="bg-[#141426] p-3 text-[10px] font-bold uppercase tracking-wider text-white/50 flex items-center gap-2">
       <Icon size={14} />
@@ -335,7 +364,7 @@ export default function SettingsPage() {
 
         {/* Supabase Realtime Cloud Backend */}
         <div className="bg-gradient-to-r from-emerald-950/40 via-[#0e0e1c] to-purple-950/40 border border-emerald-500/30 rounded-2xl overflow-hidden shadow-xl">
-          <SectionHeader icon={Database} title="Supabase Real-Time Database (Multi-Device Backend)" />
+          <SectionHeader icon={Database} title="Supabase Real-Time Database (Primary Backend)" />
           <div className="p-4 border-b border-white/[0.07] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
@@ -348,24 +377,66 @@ export default function SettingsPage() {
               ⚡ WebSockets Realtime Active
             </div>
           </div>
-          <div className="p-4 bg-white/[0.02] border-b border-white/[0.07] space-y-2">
+          
+          <div className="p-4 border-b border-white/[0.07] flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={handlePushToSupabase}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl p-3 text-xs font-bold transition-all shadow-lg flex items-center justify-center gap-2"
+            >
+              <span>🚀</span> Sync / Migrate All Data to Supabase Now
+            </button>
+            <button
+              onClick={handlePullFromSupabase}
+              className="flex-1 bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 rounded-xl p-3 text-xs font-bold transition-all flex items-center justify-center gap-2"
+            >
+              <span>📥</span> Pull Latest from Supabase
+            </button>
+          </div>
+
+          <div className="p-4 bg-white/[0.02] border-b border-white/[0.07] space-y-3">
             <p className="text-xs font-bold text-white flex items-center gap-1.5">
-              <span>📱</span> Instant iPhone Back-Tap / Action Button Endpoint:
+              <span>👥</span> Multi-Member iPhone Back-Tap & Action Button Shortcuts:
             </p>
-            <div className="bg-black/60 p-2.5 rounded-xl border border-white/10 font-mono text-[11px] text-purple-300 flex items-center justify-between">
-              <span>https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&note=Lunch</span>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText('https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&note=Lunch');
-                  showToast('📋 Endpoint URL copied!', 'success');
-                }}
-                className="px-2 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-md text-[10px] font-semibold"
-              >
-                Copy
-              </button>
+            <p className="text-[11px] text-gray-300">
+              Multiple members can each have their own Back-Tap shortcut on their iPhones. Each person's name will automatically appear on logged transactions:
+            </p>
+            
+            <div className="space-y-2">
+              <div className="bg-black/60 p-2.5 rounded-xl border border-white/10 text-[11px] flex items-center justify-between">
+                <div>
+                  <span className="text-emerald-400 font-bold">👤 Your Shortcut (Mandar):</span>
+                  <p className="font-mono text-gray-400 text-[10px] mt-0.5">https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&user=Mandar</p>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText('https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&user=Mandar');
+                    showToast('📋 Mandar shortcut URL copied!', 'success');
+                  }}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-semibold ml-2 shrink-0"
+                >
+                  Copy
+                </button>
+              </div>
+
+              <div className="bg-black/60 p-2.5 rounded-xl border border-white/10 text-[11px] flex items-center justify-between">
+                <div>
+                  <span className="text-purple-400 font-bold">👥 Family Member Shortcut:</span>
+                  <p className="font-mono text-gray-400 text-[10px] mt-0.5">https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&user=MemberName</p>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText('https://financeos-olive.vercel.app/api/quick-add?amount=250&category=Food&user=MemberName');
+                    showToast('📋 Member shortcut URL copied! Replace MemberName with their name.', 'info');
+                  }}
+                  className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-md text-[10px] font-semibold ml-2 shrink-0"
+                >
+                  Copy
+                </button>
+              </div>
             </div>
-            <p className="text-[11px] text-gray-400">
-              In Apple Shortcuts: Add <strong>"Get Contents of URL"</strong> &rarr; Method: <strong>POST or GET</strong> to the endpoint above. Logs expenses in &lt; 100ms!
+            
+            <p className="text-[10px] text-gray-400">
+              💡 In Apple Shortcuts: Add <strong>"Get Contents of URL"</strong> &rarr; Method: <strong>GET or POST</strong>. Logs expenses in &lt; 100ms and updates everyone's screens instantly!
             </p>
           </div>
         </div>

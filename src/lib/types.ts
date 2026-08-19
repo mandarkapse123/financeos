@@ -34,6 +34,7 @@ export interface ExpenseEntry {
   id: string;
   accountId: string;
   bankAccount?: string;
+  paidBy?: string; // Member name (e.g. 'Mandar', 'Pooja', 'Family Member')
   name: string;
   amount: number;
   category: string;
@@ -99,6 +100,7 @@ export interface DailyExpense {
   id: string;
   accountId: string;
   bankAccount?: string;
+  paidBy?: string; // Member name
   amount: number;
   category: string;
   paymentMethod: string;
