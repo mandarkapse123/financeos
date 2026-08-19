@@ -21,13 +21,16 @@ export const supabase = isSupabaseConfigured
 export async function pushStateToSupabase(state: AppState) {
   if (!supabase) return false;
   try {
+    const payload = {
+      id: 'primary_state',
+      state: state,
+      full_state: state,
+      updated_at: new Date().toISOString(),
+    };
+
     const { error } = await supabase
       .from('financeos_state')
-      .upsert({
-        id: 'current_state',
-        state: state,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'id' });
+      .upsert(payload, { onConflict: 'id' });
 
     if (error) {
       console.error('Supabase pushState error:', error);
@@ -46,14 +49,17 @@ export async function pullStateFromSupabase(): Promise<AppState | null> {
   try {
     const { data, error } = await supabase
       .from('financeos_state')
-      .select('state, updated_at')
-      .eq('id', 'current_state')
-      .single();
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .limit(1);
 
-    if (error || !data || !data.state) {
+    if (error || !data || data.length === 0) {
       return null;
     }
-    return data.state as AppState;
+    const row = data[0];
+    const rawState = row.state || row.full_state;
+    if (!rawState) return null;
+    return rawState as AppState;
   } catch (err) {
     console.error('Supabase pullState exception:', err);
     return null;
@@ -72,11 +78,11 @@ export function subscribeToRealtimeState(onStateReceived: (remoteState: AppState
         event: '*',
         schema: 'public',
         table: 'financeos_state',
-        filter: 'id=eq.current_state',
       },
       (payload) => {
-        if (payload.new && (payload.new as any).state) {
-          onStateReceived((payload.new as any).state as AppState);
+        if (payload.new) {
+          const raw = (payload.new as any).state || (payload.new as any).full_state;
+          if (raw) onStateReceived(raw as AppState);
         }
       }
     )
