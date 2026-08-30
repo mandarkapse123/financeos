@@ -5,6 +5,7 @@ import { useStore } from '@/lib/store-context';
 import { formatCurrency, sumAmounts, CATEGORY_COLORS, CATEGORY_ICONS, EXPENSE_CATEGORIES, formatDate } from '@/lib/utils';
 import { ExpenseEntry } from '@/lib/types';
 import { generateId } from '@/lib/store';
+import { Edit3, Trash2, Plus, SlidersHorizontal, Fuel, X } from 'lucide-react';
 
 export default function ExpensesPage() {
   const [mounted, setMounted] = useState(false);
@@ -404,30 +405,30 @@ export default function ExpensesPage() {
         {/* Expenses List Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[#141426] text-gray-400 text-xs uppercase font-semibold">
+            <thead className="bg-[#141426] text-gray-400 text-[11px] uppercase font-semibold border-b border-white/10">
               <tr>
-                <th className="p-4 w-12 text-center text-white/40">#</th>
-                <th className="p-4">Date</th>
-                <th className="p-4">Account</th>
-                <th className="p-4">Name / Note</th>
-                <th className="p-4">Category</th>
-                {showKmColumn && <th className="p-4">KM Reading</th>}
-                <th className="p-4 text-right">Amount</th>
-                <th className="p-4 text-right">Action</th>
+                <th className="p-3.5 pl-5 w-12 text-center text-gray-500 font-mono">Sr.</th>
+                <th className="p-3.5">Date</th>
+                <th className="p-3.5">Account</th>
+                <th className="p-3.5">Name / Note</th>
+                <th className="p-3.5">Category</th>
+                {showKmColumn && <th className="p-3.5">KM Reading</th>}
+                <th className="p-3.5 text-right">Amount</th>
+                <th className="p-3.5 pr-5 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody className="divide-y divide-white/5">
               {filteredExpenses.map((exp, idx) => {
                 const isFuel = exp.category === 'Petrol' || exp.category === 'Transport';
                 const kmDisplay = isFuel && exp.kmReading ? `⛽ ${exp.kmReading.toLocaleString()} km` : '—';
 
                 return (
                   <tr key={exp.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="p-4 text-center text-xs font-mono text-white/40 font-bold">#{idx + 1}</td>
-                    <td className="p-4 text-gray-400 text-xs">{formatDate(exp.date)}</td>
-                    <td className="p-4">
+                    <td className="p-3.5 pl-5 text-center text-xs font-mono text-gray-500 font-bold">{idx + 1}</td>
+                    <td className="p-3.5 text-gray-400 text-xs">{formatDate(exp.date)}</td>
+                    <td className="p-3.5">
                       <div className="flex flex-col gap-1 items-start">
-                        <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap">
+                        <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-[11px] font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap">
                           🏦 {exp.bankAccount || 'HDFC Bank'}
                         </span>
                         {exp.paidBy && (
@@ -437,12 +438,13 @@ export default function ExpensesPage() {
                         )}
                       </div>
                     </td>
-                    <td className="p-4 font-bold">{exp.name || exp.note || '-'}</td>
-                    <td className="p-4">
+                    <td className="p-3.5 font-bold text-white text-xs">{exp.name || exp.note || '-'}</td>
+                    <td className="p-3.5">
                       <span
-                        className="px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1"
+                        className="px-2.5 py-0.5 rounded-full text-xs font-semibold inline-flex items-center gap-1 border"
                         style={{
-                          backgroundColor: `${CATEGORY_COLORS[exp.category] || '#94a3b8'}20`,
+                          backgroundColor: `${CATEGORY_COLORS[exp.category] || '#94a3b8'}15`,
+                          borderColor: `${CATEGORY_COLORS[exp.category] || '#94a3b8'}30`,
                           color: CATEGORY_COLORS[exp.category] || '#94a3b8',
                         }}
                       >
@@ -450,33 +452,37 @@ export default function ExpensesPage() {
                       </span>
                     </td>
                     {showKmColumn && (
-                      <td className="p-4 text-xs font-mono text-purple-300 font-medium">
+                      <td className="p-3.5 text-xs font-mono text-purple-300 font-medium">
                         {kmDisplay}
                       </td>
                     )}
-                    <td className="p-4 text-right font-bold text-rose-400">
+                    <td className="p-3.5 text-right font-bold text-rose-400 text-xs">
                       -{formatCurrency(exp.amount, currency)}
                     </td>
-                    <td className="p-4 text-right flex justify-end gap-1">
-                      <button
-                        onClick={() => { setEditing(exp); setFormCategory(exp.category); setModalOpen(true); }}
-                        className="text-gray-400 hover:text-white p-1"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => { store.deleteExpense(exp.id); store.deleteDaily(exp.id); refresh(); }}
-                        className="text-gray-400 hover:text-rose-400 p-1"
-                      >
-                        🗑️
-                      </button>
+                    <td className="p-3.5 pr-5 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => { setEditing(exp); setFormCategory(exp.category); setModalOpen(true); }}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-purple-600/20 text-gray-400 hover:text-purple-300 border border-white/5 transition-colors"
+                          title="Edit Expense"
+                        >
+                          <Edit3 size={13} />
+                        </button>
+                        <button
+                          onClick={() => { store.deleteExpense(exp.id); store.deleteDaily(exp.id); refresh(); }}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-600/20 text-gray-400 hover:text-rose-300 border border-white/5 transition-colors"
+                          title="Delete Expense"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
               })}
               {filteredExpenses.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-gray-500">
+                  <td colSpan={showKmColumn ? 8 : 7} className="text-center py-8 text-gray-500 text-xs">
                     No expenses found in this category.
                   </td>
                 </tr>

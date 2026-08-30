@@ -7,6 +7,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, 
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { INVESTMENT_TYPES, CHART_PALETTE, Investment } from '@/lib/types';
 import { generateId } from '@/lib/store';
+import { Edit3, Trash2, Plus, Download, RefreshCw, Upload, X, Check, ArrowRight } from 'lucide-react';
 
 import * as XLSX from 'xlsx';
 
@@ -339,73 +340,96 @@ export default function InvestmentsPage() {
     setEditing(null);
   };
 
+  // Group investments by clean short asset type
+  const typeMap: Record<string, number> = {};
+  investments.forEach(inv => {
+    let t = inv.type || 'Stocks';
+    if (t.includes('Mutual')) t = 'Mutual Funds';
+    else if (t.includes('Stock') || t.includes('Equity')) t = 'Stocks';
+    else if (t.includes('Crypto')) t = 'Crypto';
+    else if (t.includes('Gold')) t = 'Gold';
+    else if (t.includes('EPF') || t.includes('PPF')) t = 'EPF/PPF';
+    else if (t.includes('FD') || t.includes('Fixed')) t = 'Fixed Deposit';
+    else if (t.includes('Real')) t = 'Real Estate';
+    
+    typeMap[t] = (typeMap[t] || 0) + (inv.currentValue || inv.investedAmount || 0);
+  });
+
+  const typeLabels = Object.keys(typeMap);
+  const typeValues = Object.values(typeMap);
+
   const allocationData = {
-    labels: investments.map(i => i.name),
+    labels: typeLabels,
     datasets: [{
-      data: investments.map(i => i.currentValue || i.investedAmount),
-      backgroundColor: CHART_PALETTE.slice(0, investments.length),
+      data: typeValues,
+      backgroundColor: CHART_PALETTE.slice(0, typeLabels.length),
       borderWidth: 0,
     }]
   };
 
+  const topHoldings = [...displayInvestments]
+    .sort((a, b) => (b.currentValue || b.investedAmount) - (a.currentValue || a.investedAmount))
+    .slice(0, 8);
+
   const barData = {
-    labels: investments.map(i => i.name.substring(0, 12)),
+    labels: topHoldings.map(i => i.name.length > 15 ? i.name.substring(0, 13) + '..' : i.name),
     datasets: [
-      { label: 'Invested', data: investments.map(i => i.investedAmount), backgroundColor: '#4f46e5', borderRadius: 4 },
-      { label: 'Current', data: investments.map(i => i.currentValue || i.investedAmount), backgroundColor: '#10b981', borderRadius: 4 },
+      { label: 'Invested', data: topHoldings.map(i => i.investedAmount), backgroundColor: '#4f46e5', borderRadius: 6 },
+      { label: 'Current', data: topHoldings.map(i => i.currentValue || i.investedAmount), backgroundColor: '#10b981', borderRadius: 6 },
     ]
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 text-white min-h-screen">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 text-white min-h-screen">
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Investment Portfolio & Groww Import</h1>
-          <p className="text-gray-400 text-sm">Track stocks, mutual funds, ISIN, closing prices & P&L</p>
+          <h1 className="text-xl md:text-2xl font-bold">Investment Portfolio &amp; Holdings</h1>
+          <p className="text-gray-400 text-xs md:text-sm">Track stocks, mutual funds, ISIN, live prices &amp; P&amp;L</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setImportModalOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.25)] flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-1.5"
           >
-            <span>📥</span> Import Groww PDF/CAS
+            <Upload size={14} /> Import Groww PDF/CAS
           </button>
           <button
             onClick={handleRefreshPrices}
             disabled={loading}
-            className="bg-white/5 hover:bg-white/10 text-white border border-white/10 text-sm font-semibold px-4 py-2 rounded-xl transition-all"
+            className="bg-white/5 hover:bg-white/10 text-white border border-white/10 text-xs font-semibold px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5"
           >
-            {loading ? 'Refreshing...' : '🔄 Refresh Live Prices'}
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            {loading ? 'Refreshing...' : 'Refresh Prices'}
           </button>
           <button
             onClick={() => { setEditing(null); setAddModalOpen(true); }}
-            className="bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all shadow-[0_0_20px_rgba(124,58,237,0.25)]"
+            className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-lg shadow-purple-600/25 flex items-center gap-1.5"
           >
-            + Add Investment
+            <Plus size={14} /> Add Holding
           </button>
         </div>
       </div>
 
       {/* 4 Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-          <span className="text-xs text-gray-400 font-semibold uppercase">Total Invested</span>
-          <p className="text-2xl font-bold text-white mt-1">{formatCurrency(totalInvested, currency)}</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        <div className="bg-[#0e0e1c] border border-white/[0.08] rounded-2xl p-4 md:p-5">
+          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Total Invested</span>
+          <p className="text-xl md:text-2xl font-black text-white mt-1">{formatCurrency(totalInvested, currency)}</p>
         </div>
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-          <span className="text-xs text-gray-400 font-semibold uppercase">Current Value</span>
-          <p className="text-2xl font-bold text-purple-400 mt-1">{formatCurrency(totalCurrent, currency)}</p>
+        <div className="bg-[#0e0e1c] border border-white/[0.08] rounded-2xl p-4 md:p-5">
+          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Current Value</span>
+          <p className="text-xl md:text-2xl font-black text-purple-400 mt-1">{formatCurrency(totalCurrent, currency)}</p>
         </div>
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-          <span className="text-xs text-gray-400 font-semibold uppercase">Unrealised P&L</span>
-          <p className={`text-2xl font-bold mt-1 ${totalReturns >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+        <div className="bg-[#0e0e1c] border border-white/[0.08] rounded-2xl p-4 md:p-5">
+          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Unrealised P&amp;L</span>
+          <p className={`text-xl md:text-2xl font-black mt-1 ${totalReturns >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {totalReturns >= 0 ? '+' : ''}{formatCurrency(totalReturns, currency)}
           </p>
         </div>
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-          <span className="text-xs text-gray-400 font-semibold uppercase">Overall Returns %</span>
-          <p className={`text-2xl font-bold mt-1 ${returnsPercentage >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+        <div className="bg-[#0e0e1c] border border-white/[0.08] rounded-2xl p-4 md:p-5">
+          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Overall Returns %</span>
+          <p className={`text-xl md:text-2xl font-black mt-1 ${returnsPercentage >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {returnsPercentage >= 0 ? '+' : ''}{returnsPercentage.toFixed(2)}%
           </p>
         </div>
@@ -413,58 +437,65 @@ export default function InvestmentsPage() {
 
       {/* Charts */}
       {investments.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-            <h3 className="text-lg font-semibold mb-4">Asset Allocation</h3>
-            <div className="w-2/3 mx-auto">
-              <Doughnut data={allocationData} options={{ plugins: { legend: { position: 'right', labels: { color: '#fff' } } } }} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+          <div className="bg-[#0e0e1c] border border-white/[0.08] rounded-2xl p-5">
+            <h3 className="text-sm font-bold text-white mb-3">Asset Allocation (By Class)</h3>
+            <div className="max-w-[280px] mx-auto py-2">
+              <Doughnut data={allocationData} options={{ plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 11, family: 'Inter' }, boxWidth: 12, padding: 12 } } } }} />
             </div>
           </div>
-          <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5">
-            <h3 className="text-lg font-semibold mb-4">Holdings: Invested vs Current</h3>
-            <Bar data={barData} options={{ responsive: true, plugins: { legend: { labels: { color: '#fff' } } } }} />
+          <div className="bg-[#0e0e1c] border border-white/[0.08] rounded-2xl p-5">
+            <h3 className="text-sm font-bold text-white mb-3">Top Holdings: Invested vs Current</h3>
+            <Bar data={barData} options={{ responsive: true, plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } } }} />
           </div>
         </div>
       )}
 
       {/* Detailed Holdings Table */}
-      <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 space-y-4">
-        <h3 className="text-lg font-semibold">Holdings & Stock Details</h3>
+      <div className="bg-[#0e0e1c] border border-white/[0.08] rounded-2xl p-4 md:p-5 space-y-4 shadow-xl">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-base font-bold text-white">Holdings &amp; Stock Details</h3>
+            <p className="text-xs text-gray-400">Total {displayInvestments.length} individual securities and funds tracked</p>
+          </div>
+        </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-[#141426] text-gray-400 text-xs uppercase font-semibold">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#141426] text-gray-400 text-[11px] uppercase font-semibold border-b border-white/10">
               <tr>
-                <th className="p-4">Stock / Fund Name</th>
-                <th className="p-4">ISIN / Ticker</th>
-                <th className="p-4">Type</th>
-                <th className="p-4">Qty & Avg Buy Price</th>
-                <th className="p-4">Invested Value</th>
-                <th className="p-4">Closing Price / Val</th>
-                <th className="p-4 text-right">Unrealised P&L</th>
-                <th className="p-4 text-right">Action</th>
+                <th className="p-3.5 pl-5 w-12 text-center text-gray-500 font-mono">Sr.</th>
+                <th className="p-3.5">Stock / Fund Name</th>
+                <th className="p-3.5">ISIN / Ticker</th>
+                <th className="p-3.5">Type</th>
+                <th className="p-3.5">Qty &amp; Avg Buy Price</th>
+                <th className="p-3.5">Invested Value</th>
+                <th className="p-3.5">Closing Price / Val</th>
+                <th className="p-3.5 text-right">Unrealised P&amp;L</th>
+                <th className="p-3.5 pr-5 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
-              {displayInvestments.map(inv => {
+            <tbody className="divide-y divide-white/5">
+              {displayInvestments.map((inv, idx) => {
                 const ret = (inv.currentValue || inv.investedAmount) - inv.investedAmount;
                 const retPct = inv.investedAmount ? (ret / inv.investedAmount) * 100 : 0;
                 return (
                   <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="p-4 font-medium">
+                    <td className="p-3.5 pl-5 text-center text-xs font-mono text-gray-500 font-bold">{idx + 1}</td>
+                    <td className="p-3.5 font-bold text-white">
                       {inv.name}
-                      {inv.note && <span className="text-[10px] text-purple-300 block">{inv.note}</span>}
-                      {inv.clientCode && <span className="text-[10px] text-emerald-400 block font-mono">UCC: {inv.clientCode}</span>}
+                      {inv.note && <span className="text-[10px] text-purple-300 font-normal block mt-0.5">{inv.note}</span>}
+                      {inv.clientCode && <span className="text-[10px] text-emerald-400 font-mono block">UCC: {inv.clientCode}</span>}
                     </td>
-                    <td className="p-4 text-xs font-mono text-gray-400">
+                    <td className="p-3.5 font-mono text-gray-400">
                       {inv.isin || inv.tickerSymbol || '—'}
                     </td>
-                    <td className="p-4 text-xs">
-                      <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded-full font-semibold">
+                    <td className="p-3.5">
+                      <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded-full font-semibold text-[10px] text-gray-300">
                         {inv.type}
                       </span>
                     </td>
-                    <td className="p-4 text-xs text-gray-300">
+                    <td className="p-3.5 text-gray-300">
                       {inv.quantity ? (
                         <>
                           <span className="font-bold text-white">{inv.quantity} Qty</span> @ {formatCurrency(inv.avgBuyPrice || (inv.investedAmount / inv.quantity), currency)}
@@ -473,37 +504,39 @@ export default function InvestmentsPage() {
                         '—'
                       )}
                     </td>
-                    <td className="p-4 font-medium">{formatCurrency(inv.investedAmount, currency)}</td>
-                    <td className="p-4 font-medium text-purple-300">
+                    <td className="p-3.5 font-semibold text-gray-200">{formatCurrency(inv.investedAmount, currency)}</td>
+                    <td className="p-3.5 font-bold text-purple-300">
                       {formatCurrency(inv.currentValue || inv.investedAmount, currency)}
-                      {inv.closingPrice && <span className="text-[10px] text-gray-500 block">Close: {formatCurrency(inv.closingPrice, currency)}</span>}
+                      {inv.closingPrice && <span className="text-[10px] text-gray-400 font-normal block">Close: {formatCurrency(inv.closingPrice, currency)}</span>}
                     </td>
-                    <td className={`p-4 text-right font-bold ${ret >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    <td className={`p-3.5 text-right font-bold ${ret >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                       {ret >= 0 ? '+' : ''}{formatCurrency(ret, currency)}
-                      <span className="text-xs font-normal block">({retPct >= 0 ? '+' : ''}{retPct.toFixed(2)}%)</span>
+                      <span className="text-[10px] font-normal block">({retPct >= 0 ? '+' : ''}{retPct.toFixed(2)}%)</span>
                     </td>
-                    <td className="p-4 text-right flex justify-end gap-1">
-                      <button
-                        onClick={() => { setEditing(inv); setAddModalOpen(true); }}
-                        className="text-gray-400 hover:text-white p-1"
-                        title="Edit holding"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => { store.deleteInvestment(inv.id); refresh(); }}
-                        className="text-gray-400 hover:text-rose-400 p-1"
-                        title="Delete holding"
-                      >
-                        🗑️
-                      </button>
+                    <td className="p-3.5 pr-5 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => { setEditing(inv); setAddModalOpen(true); }}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-purple-600/20 text-gray-400 hover:text-purple-300 border border-white/5 transition-colors"
+                          title="Edit holding"
+                        >
+                          <Edit3 size={13} />
+                        </button>
+                        <button
+                          onClick={() => { store.deleteInvestment(inv.id); refresh(); }}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-600/20 text-gray-400 hover:text-rose-300 border border-white/5 transition-colors"
+                          title="Delete holding"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
               })}
               {investments.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-gray-500">
+                  <td colSpan={9} className="text-center py-8 text-gray-500 text-xs">
                     No investments logged yet. Add manually or click <strong>Import Groww PDF/CAS</strong> above!
                   </td>
                 </tr>
