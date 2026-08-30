@@ -58,7 +58,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
             sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-[248px]'
           } ${
-            copilotOpen ? 'xl:mr-[400px]' : ''
+            copilotOpen ? 'md:mr-[400px]' : ''
           }`}>
             <TopBar
               onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}

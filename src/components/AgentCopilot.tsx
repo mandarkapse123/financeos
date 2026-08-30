@@ -290,14 +290,14 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
 
   return (
     <>
-      {/* Mobile Backdrop (only on screens < xl) */}
+      {/* Mobile-Only Backdrop (only for small phone viewports < 768px) */}
       <div 
-        className="xl:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
+        className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity animate-fade-in"
         onClick={() => setIsOpen(false)}
       />
 
-      {/* Docked Right Side Panel (Squeezes page on xl+ displays) */}
-      <aside className="fixed top-0 right-0 bottom-0 w-[400px] max-w-full h-full bg-[#07070f] border-l border-white/[0.12] shadow-2xl flex flex-col z-40 transition-all duration-300 animate-slide-in">
+      {/* Docked Right Side Panel (Desktop page squeezes side-by-side with NO backdrop) */}
+      <aside className="fixed top-0 right-0 bottom-0 w-[400px] max-w-full h-full bg-[#080812] border-l border-white/[0.12] shadow-2xl flex flex-col z-30 transition-all duration-300">
         {/* Drawer Header */}
         <div className="p-4 border-b border-white/[0.08] bg-[#0c0c1a] flex justify-between items-center">
           <div className="flex items-center gap-2.5">
