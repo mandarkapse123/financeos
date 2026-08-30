@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useStore } from '@/lib/store-context';
 import { InventoryItem, INVENTORY_CATEGORIES, BANK_ACCOUNTS } from '@/lib/types';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatFull, formatDate } from '@/lib/utils';
 import { 
   Package, Plus, UploadCloud, Search, Trash2, Edit3, 
   MinusCircle, CheckCircle, AlertTriangle, ShoppingBag, 
@@ -643,7 +643,12 @@ export default function InventoryPage() {
                     </div>
                     <div>
                       <span className="text-[10px] text-gray-400 uppercase font-semibold">Total Amount</span>
-                      <p className="text-sm font-black text-emerald-400">{formatCurrency(parsedInvoiceData.totalAmount, currency)}</p>
+                      <p className="text-sm font-black text-emerald-400">
+                        {formatFull(
+                          parsedInvoiceData.items.filter(i => i.selected).reduce((sum, i) => sum + i.totalAmount, 0),
+                          currency
+                        )}
+                      </p>
                     </div>
                   </div>
 
@@ -763,7 +768,7 @@ export default function InventoryPage() {
                     onClick={handleConfirmStocking}
                     className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 flex items-center gap-2"
                   >
-                    <span>🚀 Confirm &amp; Stock Inventory ({parsedInvoiceData.items.filter(i => i.selected).length} items)</span>
+                    <span>🚀 Confirm &amp; Stock Inventory ({parsedInvoiceData.items.filter(i => i.selected).length} items · {formatFull(parsedInvoiceData.items.filter(i => i.selected).reduce((s, it) => s + it.totalAmount, 0), currency)})</span>
                   </button>
                 </>
               ) : (
