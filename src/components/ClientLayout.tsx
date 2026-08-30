@@ -6,6 +6,7 @@ import TopBar from './TopBar';
 import QuickAddModal from './QuickAddModal';
 import { ToastProvider } from './Toast';
 import { StoreProvider } from '@/lib/store-context';
+import { Agentation } from 'agentation';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -31,6 +32,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           isOpen={quickAddOpen}
           onClose={() => setQuickAddOpen(false)}
         />
+
+        {typeof window !== 'undefined' && <Agentation />}
       </ToastProvider>
     </StoreProvider>
   );

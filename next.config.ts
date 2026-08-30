@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ['@firecrawl/anydoc', 'unpdf', 'pdf-parse'],
   async headers() {
     return [
       {
