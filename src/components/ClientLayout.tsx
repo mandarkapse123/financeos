@@ -12,6 +12,7 @@ import AgentCopilot from './AgentCopilot';
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Read saved collapse preference
@@ -20,6 +21,18 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       const saved = localStorage.getItem('financeos_sidebar_collapsed');
       if (saved === 'true') setSidebarCollapsed(true);
     } catch {}
+  }, []);
+
+  // Global Cmd+K / Ctrl+K shortcut to toggle Copilot side panel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCopilotOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const handleToggleCollapse = (val: boolean) => {
@@ -45,10 +58,11 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             <TopBar
               onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
               onQuickAdd={() => setQuickAddOpen(true)}
+              onOpenCopilot={() => setCopilotOpen(true)}
               sidebarCollapsed={sidebarCollapsed}
               setSidebarCollapsed={handleToggleCollapse}
             />
-            <main className="flex-1 p-4 md:p-6 lg:p-8 animate-fade-in max-w-7xl mx-auto w-full">
+            <main className="flex-1 p-4 md:p-6 lg:p-7 animate-fade-in w-full max-w-[1720px] mx-auto">
               {children}
             </main>
           </div>
@@ -59,7 +73,10 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           onClose={() => setQuickAddOpen(false)}
         />
 
-        <AgentCopilot />
+        <AgentCopilot 
+          isOpen={copilotOpen}
+          setIsOpen={setCopilotOpen}
+        />
 
         {typeof window !== 'undefined' && <Agentation />}
       </ToastProvider>

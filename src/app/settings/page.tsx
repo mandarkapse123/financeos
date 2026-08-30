@@ -6,8 +6,9 @@ import { generateId } from '../../lib/store';
 import { downloadFile } from '../../lib/utils';
 import { pushStateToSupabase, pullStateFromSupabase } from '../../lib/supabase';
 import { APP_VERSION, BUILD_NUMBER, BUILD_TIMESTAMP, BUILD_RELEASE_NOTE } from '../../lib/version';
+import { AVAILABLE_TICKER_OPTIONS } from '../../lib/types';
 import {
-  User, Wallet, Smartphone, Database, Trash2, Plus, Upload, Download, RefreshCw, X, ShieldAlert, FileJson, Pencil, Check, Users, ArrowUpRight, Sparkles, Server
+  User, Wallet, Smartphone, Database, Trash2, Plus, Upload, Download, RefreshCw, X, ShieldAlert, FileJson, Pencil, Check, Users, ArrowUpRight, Sparkles, Server, TrendingUp
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -372,6 +373,47 @@ export default function SettingsPage() {
               <option value="€">EUR (€)</option>
               <option value="£">GBP (£)</option>
             </select>
+          </div>
+        </div>
+
+        {/* Live Market & Finance Ticker Preferences */}
+        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
+          <SectionHeader icon={TrendingUp} title="Live Horizontal Ticker Display Preferences" />
+          <div className="p-4 border-b border-white/[0.07]">
+            <p className="font-semibold text-sm text-white">Choose Ticker Items</p>
+            <p className="text-xs text-gray-400 mt-0.5">Select the financial indicators and metrics you want scrolling horizontally across the topbar.</p>
+          </div>
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white/[0.01]">
+            {AVAILABLE_TICKER_OPTIONS.map(opt => {
+              const currentPrefs = state.settings.tickerPreferences || AVAILABLE_TICKER_OPTIONS.map(o => o.id);
+              const isChecked = currentPrefs.includes(opt.id);
+
+              return (
+                <label
+                  key={opt.id}
+                  className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    isChecked 
+                      ? 'bg-purple-600/10 border-purple-500/30 text-white' 
+                      : 'bg-black/30 border-white/5 text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={(e) => {
+                      const newPrefs = e.target.checked
+                        ? [...currentPrefs, opt.id]
+                        : currentPrefs.filter(id => id !== opt.id);
+                      store.updateSettings({ tickerPreferences: newPrefs });
+                      refresh();
+                      showToast(`Updated ticker display`);
+                    }}
+                    className="w-4 h-4 rounded border-white/20 bg-black text-purple-600 focus:ring-purple-500"
+                  />
+                  <span className="text-xs font-semibold">{opt.label}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
 

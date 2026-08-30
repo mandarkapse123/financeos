@@ -36,6 +36,22 @@ export default function Sidebar({
   const userInitials = userName.charAt(0).toUpperCase();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const hoverTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const handleMouseEnter = () => {
+    if (collapsed && setCollapsed) {
+      hoverTimerRef.current = setTimeout(() => {
+        setCollapsed(false);
+      }, 2000);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  };
 
   const handleSwitchAccount = (accountId: string) => {
     store.setCurrentAccount(accountId);
@@ -99,6 +115,8 @@ export default function Sidebar({
 
       {/* Sidebar */}
       <aside 
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className={`fixed top-0 left-0 h-full bg-[#050509]/95 backdrop-blur-xl border-r border-white/[0.08] z-50 flex flex-col transition-all duration-300 ${
           collapsed ? 'w-[72px]' : 'w-[248px]'
         } ${

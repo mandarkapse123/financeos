@@ -152,7 +152,19 @@ export interface AppSettings {
   deletedIds?: string[];
   openingBalances?: Record<string, number>;
   theme?: 'dark' | 'light';
+  tickerPreferences?: string[];
 }
+
+export const AVAILABLE_TICKER_OPTIONS = [
+  { id: 'nifty', label: 'NIFTY 50 Index' },
+  { id: 'petrol', label: 'Pune Petrol Price' },
+  { id: 'spend', label: 'Monthly Expense Spend' },
+  { id: 'portfolio', label: 'Portfolio Value' },
+  { id: 'pantry', label: 'Pantry Stock Count & Value' },
+  { id: 'bitcoin', label: 'Bitcoin Price' },
+  { id: 'sync', label: 'Supabase Cloud Sync Status' },
+  { id: 'user', label: 'Active User Profile' },
+];
 
 export interface InventoryItem {
   id: string;

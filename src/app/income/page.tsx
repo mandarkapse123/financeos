@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '@/lib/store-context';
-import { formatCurrency, sumAmounts, monthlyAmount, CATEGORY_COLORS, INCOME_CATEGORIES } from '@/lib/utils';
+import { formatCurrency, sumAmounts, monthlyAmount, CATEGORY_COLORS, INCOME_CATEGORIES, formatDate } from '@/lib/utils';
 import { IncomeEntry } from '@/lib/types';
 import { generateId } from '@/lib/store';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Legend, Tooltip
 } from 'chart.js';
 import { Doughnut, Line } from 'react-chartjs-2';
-import { Wallet, ArrowUpRight, ArrowDownRight, Building2, Trash2, Pencil } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownRight, Building2, Trash2, Edit3, Plus, X, Calendar, Filter } from 'lucide-react';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, ArcElement, Filler, Legend, Tooltip);
 
@@ -32,6 +32,7 @@ export default function IncomePage() {
 
   const currentMonthKey = new Date().toISOString().substring(0, 7);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
+  const [filterByMonthOnly, setFilterByMonthOnly] = useState<boolean>(false);
 
   // Dynamic Month Options (Current Month + past months)
   const monthOptions = useMemo(() => {
@@ -70,7 +71,6 @@ export default function IncomePage() {
     const result: Record<string, { income: number; expenses: number; net: number; monthIncome: number; monthExpenses: number; monthBalance: number }> = {};
 
     banks.forEach(b => {
-      // Income logged to this bank
       const bankInc = allIncome
         .filter(i => (i.bankAccount || 'HDFC Bank') === b)
         .reduce((sum, i) => sum + i.amount, 0);
@@ -81,7 +81,6 @@ export default function IncomePage() {
 
       const totalInc = bankInc + rentInc;
 
-      // Expenses logged to this bank
       const genExp = allExpenses
         .filter(e => (e.bankAccount || 'HDFC Bank') === b)
         .reduce((sum, e) => sum + e.amount, 0);
@@ -92,7 +91,6 @@ export default function IncomePage() {
 
       const totalExp = genExp + dailyExp;
 
-      // Selected Month Specific Stats
       const monthInc = allIncome
         .filter(i => (i.bankAccount || 'HDFC Bank') === b && (i.date || '').substring(0, 7) === selectedMonth)
         .reduce((sum, i) => sum + i.amount, 0) +
@@ -120,15 +118,18 @@ export default function IncomePage() {
     return result;
   }, [allIncome, allExpenses, allDaily, allRentEntries, allRentExpenses, selectedMonth]);
 
-  // Filtered Income List based on selectedBank filter with Date & Time sorting
+  // Filtered Income List based on selectedBank and selectedMonth (if toggled)
   const income = useMemo(() => {
-    const list = selectedBank === 'All' ? allIncome : allIncome.filter(i => (i.bankAccount || 'HDFC Bank') === selectedBank);
+    let list = selectedBank === 'All' ? allIncome : allIncome.filter(i => (i.bankAccount || 'HDFC Bank') === selectedBank);
+    if (filterByMonthOnly) {
+      list = list.filter(i => (i.date || '').substring(0, 7) === selectedMonth);
+    }
     return [...list].sort((a, b) => {
       const dComp = (b.date || '').localeCompare(a.date || '');
       if (dComp !== 0) return dComp;
       return (b.id || '').localeCompare(a.id || '');
     });
-  }, [allIncome, selectedBank]);
+  }, [allIncome, selectedBank, selectedMonth, filterByMonthOnly]);
 
   if (!mounted) return null;
 
@@ -141,39 +142,55 @@ export default function IncomePage() {
     return acc;
   }, {} as Record<string, number>);
 
+  const donutLabels = Object.keys(incomeByCategory);
+  const donutValues = Object.values(incomeByCategory);
+
   const donutData = {
-    labels: Object.keys(incomeByCategory).length > 0 ? Object.keys(incomeByCategory) : ['No Data'],
+    labels: donutLabels.length > 0 ? donutLabels : ['No Income'],
     datasets: [{
-      data: Object.values(incomeByCategory).length > 0 ? Object.values(incomeByCategory) : [1],
-      backgroundColor: Object.keys(incomeByCategory).length > 0
-        ? Object.keys(incomeByCategory).map(c => CATEGORY_COLORS[c] || '#94a3b8')
-        : ['#334155'],
+      data: donutValues.length > 0 ? donutValues : [1],
+      backgroundColor: donutLabels.length > 0
+        ? donutLabels.map(cat => CATEGORY_COLORS[cat] || '#7c3aed')
+        : ['#1c1c30'],
       borderWidth: 0,
-    }]
+      hoverOffset: 4,
+    }],
   };
 
   const trendData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+    labels: monthOptions.slice(0, 6).reverse().map(m => m.label),
     datasets: [{
-      label: 'Income Trend',
-      data: [totalMonthly * 0.8, totalMonthly * 0.9, totalMonthly * 1.1, totalMonthly * 1, totalMonthly * 1.05, totalMonthly],
+      label: 'Monthly Income',
+      data: monthOptions.slice(0, 6).reverse().map(m => {
+        return allIncome
+          .filter(i => (i.date || '').substring(0, 7) === m.key)
+          .reduce((s, i) => s + i.amount, 0);
+      }),
       borderColor: '#10b981',
-      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      backgroundColor: 'rgba(16, 185, 129, 0.08)',
       fill: true,
-      tension: 0.4
+      tension: 0.35,
+      pointRadius: 4,
+      pointBackgroundColor: '#10b981',
     }]
   };
 
   const chartOptions = {
     responsive: true,
-    plugins: { legend: { display: false } },
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom' as const,
+        labels: { color: '#94a3b8', font: { size: 11, family: 'Inter' }, boxWidth: 10, padding: 10 },
+      },
+    },
     scales: {
-      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b' } },
-      x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b' } }
+      x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 } } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b', font: { size: 10 } } },
     }
   };
 
-  const handleSaveIncome = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const item: IncomeEntry = {
@@ -198,35 +215,24 @@ export default function IncomePage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 text-white min-h-screen">
-      {/* Header & Add Income */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-6">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 text-white min-h-screen">
+      {/* Header & Controls */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0a0a14] border border-white/[0.08] rounded-2xl p-5 shadow-lg">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Building2 className="text-purple-400" size={24} /> Income & Bank Balances
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <Building2 className="text-purple-400" size={22} /> Income &amp; Cash Flow
           </h1>
-          <p className="text-gray-400 text-sm mt-1">Track earnings and manage separate balances for HDFC, ICICI & SBI</p>
+          <p className="text-gray-400 text-xs mt-0.5">Track earnings, separate bank accounts, and monthly trends</p>
         </div>
-        <button
-          onClick={() => { setEditing(null); setModalOpen(true); }}
-          className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 rounded-xl font-semibold shadow-lg shadow-purple-600/30 transition-all"
-        >
-          + Add Income
-        </button>
-      </div>
 
-      {/* 3 SEPARATE BANK BALANCE & CASHFLOW CARDS */}
-      <div>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-white/50 flex items-center gap-2">
-            🏦 Separate Bank Balances & Net Position
-          </h2>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-purple-300 font-semibold">📅 Select Month:</span>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Month Selector */}
+          <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-xs font-semibold">
+            <Calendar size={13} className="text-purple-400" />
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-[#141426] border border-purple-500/40 text-purple-300 text-xs font-bold px-3 py-1.5 rounded-xl shadow-lg focus:outline-none focus:ring-1 focus:ring-purple-400"
+              className="bg-transparent text-purple-300 font-bold focus:outline-none cursor-pointer"
             >
               {monthOptions.map(m => (
                 <option key={m.key} value={m.key} className="bg-[#141426] text-white">
@@ -235,223 +241,207 @@ export default function IncomePage() {
               ))}
             </select>
           </div>
+
+          <button
+            onClick={() => { setEditing(null); setModalOpen(true); }}
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 rounded-xl text-xs font-bold shadow-lg shadow-purple-600/20 transition-all flex items-center gap-1.5"
+          >
+            <Plus size={14} /> Add Income
+          </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            { name: 'HDFC Bank', color: 'from-blue-900/40 to-indigo-950/60', border: 'border-blue-500/30', text: 'text-blue-400', badge: 'bg-blue-500/20 text-blue-300' },
-            { name: 'ICICI Bank', color: 'from-amber-950/40 to-orange-950/60', border: 'border-amber-500/30', text: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-300' },
-            { name: 'SBI Bank', color: 'from-emerald-950/40 to-teal-950/60', border: 'border-emerald-500/30', text: 'text-emerald-400', badge: 'bg-emerald-500/20 text-emerald-300' }
-          ].map(bank => {
-            const stats = bankStats[bank.name] || { income: 0, expenses: 0, net: 0, monthIncome: 0, monthExpenses: 0, monthBalance: 0 };
-            const isSelected = selectedBank === bank.name;
-            const openingBal = state.settings.openingBalances?.[bank.name] || 0;
-            const currentBankBalance = openingBal + stats.net;
+      </div>
 
-            return (
-              <div
-                key={bank.name}
-                onClick={() => setSelectedBank(isSelected ? 'All' : bank.name as any)}
-                className={`bg-gradient-to-br ${bank.color} border ${bank.border} rounded-2xl p-5 cursor-pointer transition-all shadow-xl hover:scale-[1.02] relative overflow-hidden ${
-                  isSelected ? 'ring-2 ring-purple-500 shadow-purple-500/20' : ''
-                }`}
-              >
-                <div className="flex justify-between items-center mb-3">
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${bank.badge}`}>
-                    🏦 {bank.name}
+      {/* 3 CLEAN BANK BALANCE CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+        {[
+          { name: 'HDFC Bank', border: 'border-blue-500/20', badge: 'bg-blue-500/15 text-blue-300 border-blue-500/30' },
+          { name: 'ICICI Bank', border: 'border-amber-500/20', badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
+          { name: 'SBI Bank', border: 'border-emerald-500/20', badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' }
+        ].map(bank => {
+          const stats = bankStats[bank.name] || { income: 0, expenses: 0, net: 0, monthIncome: 0, monthExpenses: 0, monthBalance: 0 };
+          const isSelected = selectedBank === bank.name;
+          const openingBal = state.settings.openingBalances?.[bank.name] || 0;
+          const currentBankBalance = openingBal + stats.net;
+
+          return (
+            <div
+              key={bank.name}
+              onClick={() => setSelectedBank(isSelected ? 'All' : bank.name as any)}
+              className={`bg-[#0a0a14] border ${bank.border} rounded-2xl p-4 cursor-pointer transition-all shadow-md hover:border-purple-500/40 relative ${
+                isSelected ? 'ring-2 ring-purple-500 bg-purple-950/20' : ''
+              }`}
+            >
+              <div className="flex justify-between items-center mb-3">
+                <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${bank.badge}`}>
+                  🏦 {bank.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingOpeningBank({ name: bank.name, balance: openingBal });
+                  }}
+                  className="text-[10px] text-gray-400 hover:text-purple-300 bg-white/5 hover:bg-white/10 px-2 py-1 rounded-lg flex items-center gap-1 transition-all border border-white/5"
+                  title="Set Opening Balance"
+                >
+                  <Edit3 size={10} /> Set Opening
+                </button>
+              </div>
+
+              {/* Main Balance */}
+              <div className="mb-3">
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Current Balance</span>
+                <p className="text-xl font-black text-white mt-0.5">{formatCurrency(currentBankBalance, currency)}</p>
+              </div>
+
+              {/* Month Activity Pill */}
+              <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-2.5 flex justify-between items-center text-xs">
+                <div>
+                  <span className="text-[10px] text-gray-400 block font-medium">{selectedMonthLabel} Net</span>
+                  <span className={`font-bold ${stats.monthBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {stats.monthBalance >= 0 ? '+' : ''}{formatCurrency(stats.monthBalance, currency)}
                   </span>
-                  <div className="flex items-center gap-1.5">
-                    {isSelected && <span className="text-xs bg-purple-500 text-white font-bold px-2 py-0.5 rounded-full">Active</span>}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingOpeningBank({ name: bank.name, balance: openingBal });
-                      }}
-                      className="text-xs bg-white/10 hover:bg-purple-600 text-white px-2 py-0.5 rounded-lg flex items-center gap-1 transition-all"
-                      title="Set Opening Balance"
-                    >
-                      <Pencil size={11} /> Edit Opening
-                    </button>
-                  </div>
                 </div>
-
-                <div className="space-y-3 mt-3">
-                  {/* HERO: Current Bank Balance */}
-                  <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">💰 Current Bank Balance</span>
-                      <span className={`text-lg font-bold ${currentBankBalance >= 0 ? bank.text : 'text-rose-400'}`}>
-                        {formatCurrency(currentBankBalance, currency)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-[10px] text-gray-400 mt-1">
-                      <span>Opening: {formatCurrency(openingBal, currency)}</span>
-                      <span>Net Cashflow: {stats.net >= 0 ? '+' : ''}{formatCurrency(stats.net, currency)}</span>
-                    </div>
-                  </div>
-
-                  {/* Top: Total Bank Income */}
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-400 font-medium">Bank Income (Total)</span>
-                    <span className="text-sm font-semibold text-emerald-400 flex items-center gap-1">
-                      <ArrowUpRight size={14} /> +{formatCurrency(stats.income, currency)}
-                    </span>
-                  </div>
-
-                  {/* Middle: Selected Month Balance (Salary/Income Added - Expenses) */}
-                  <div className="bg-black/30 border border-white/10 p-3 rounded-xl space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-purple-300 flex items-center gap-1">
-                        ⚡ {selectedMonthLabel} Balance
-                      </span>
-                      <span className={`text-sm font-bold ${stats.monthBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {stats.monthBalance >= 0 ? '+' : ''}{formatCurrency(stats.monthBalance, currency)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-[10px] text-gray-400">
-                      <span>Salary/Inc: +{formatCurrency(stats.monthIncome, currency)}</span>
-                      <span>Exp: -{formatCurrency(stats.monthExpenses, currency)}</span>
-                    </div>
-                  </div>
-
-                  {/* Bottom-Middle: Total Bank Expenses */}
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-400 font-medium">Bank Expenses (Total)</span>
-                    <span className="text-sm font-semibold text-rose-400 flex items-center gap-1">
-                      <ArrowDownRight size={14} /> -{formatCurrency(stats.expenses, currency)}
-                    </span>
-                  </div>
+                <div className="text-right text-[10px] text-gray-400">
+                  <span className="text-emerald-400/90 block">+{formatCurrency(stats.monthIncome, currency)}</span>
+                  <span className="text-rose-400/90 block">-{formatCurrency(stats.monthExpenses, currency)}</span>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* FILTER BUTTONS & MONTH TOGGLE */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          {(['All', 'HDFC Bank', 'ICICI Bank', 'SBI Bank'] as const).map(b => (
+            <button
+              key={b}
+              onClick={() => setSelectedBank(b)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                selectedBank === b
+                  ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                  : 'bg-[#0a0a14] text-gray-400 hover:text-white border border-white/10'
+              }`}
+            >
+              {b === 'All' ? '🌐 All Accounts' : `🏦 ${b}`}
+            </button>
+          ))}
         </div>
+
+        <button
+          onClick={() => setFilterByMonthOnly(!filterByMonthOnly)}
+          className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+            filterByMonthOnly
+              ? 'bg-purple-600/20 text-purple-300 border-purple-500/40'
+              : 'bg-white/5 text-gray-400 hover:text-white border-white/10'
+          }`}
+        >
+          <Filter size={12} />
+          <span>{filterByMonthOnly ? `Filtering by ${selectedMonthLabel}` : 'Show All Months'}</span>
+        </button>
       </div>
 
-      {/* BANK FILTER TOGGLE BUTTONS */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-        <span className="text-xs font-bold uppercase tracking-wider text-white/40 mr-2">Filter View:</span>
-        {(['All', 'HDFC Bank', 'ICICI Bank', 'SBI Bank'] as const).map(b => (
-          <button
-            key={b}
-            onClick={() => setSelectedBank(b)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-              selectedBank === b
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
-                : 'bg-[#0e0e1c] text-gray-400 hover:text-white border border-white/10'
-            }`}
-          >
-            {b === 'All' ? '🌐 All Bank Accounts' : `🏦 ${b}`}
-          </button>
-        ))}
-      </div>
-
-      {/* OVERVIEW METRICS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { label: 'Total Monthly Income', value: formatCurrency(totalMonthly, currency), sub: `Across ${totalCount} stream(s)` },
-          { label: 'Highest Source', value: highestSource, sub: 'Top earning category' },
-          { label: 'Income Streams', value: totalCount.toString(), sub: 'Active revenue sources' },
-        ].map((m, i) => (
-          <div key={i} className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple-600 to-purple-400" />
-            <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">{m.label}</p>
-            <p className="text-2xl font-bold text-white mt-1">{m.value}</p>
-            <p className="text-xs text-purple-400 mt-1 font-medium">{m.sub}</p>
-          </div>
-        ))}
+      {/* 3 OVERVIEW METRICS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+        <div className="bg-[#0a0a14] border border-white/[0.08] rounded-2xl p-4">
+          <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Total Monthly Income</p>
+          <p className="text-xl font-black text-white mt-1">{formatCurrency(totalMonthly, currency)}</p>
+          <p className="text-[11px] text-purple-400 mt-0.5">Across {totalCount} stream(s)</p>
+        </div>
+        <div className="bg-[#0a0a14] border border-white/[0.08] rounded-2xl p-4">
+          <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Highest Source</p>
+          <p className="text-xl font-black text-white mt-1 truncate">{highestSource}</p>
+          <p className="text-[11px] text-emerald-400 mt-0.5">Top revenue generator</p>
+        </div>
+        <div className="bg-[#0a0a14] border border-white/[0.08] rounded-2xl p-4">
+          <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Active Streams</p>
+          <p className="text-xl font-black text-white mt-1">{totalCount}</p>
+          <p className="text-[11px] text-indigo-300 mt-0.5">Tracked sources</p>
+        </div>
       </div>
 
       {/* CHARTS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 space-y-3">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Income Category Breakdown</h3>
-          <div className="h-[220px] flex items-center justify-center">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        <div className="bg-[#0a0a14] border border-white/[0.08] rounded-2xl p-5">
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Income Category Breakdown</h3>
+          <div className="h-[200px] flex items-center justify-center">
             <Doughnut data={donutData} options={{ ...chartOptions, maintainAspectRatio: false }} />
           </div>
         </div>
 
-        <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-5 space-y-3">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">6-Month Trend</h3>
-          <div className="h-[220px]">
+        <div className="bg-[#0a0a14] border border-white/[0.08] rounded-2xl p-5">
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">6-Month Trend</h3>
+          <div className="h-[200px]">
             <Line data={trendData} options={{ ...chartOptions, maintainAspectRatio: false }} />
           </div>
         </div>
       </div>
 
       {/* INCOME TABLE */}
-      <div className="bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-6 space-y-4">
+      <div className="bg-[#0a0a14] border border-white/[0.08] rounded-2xl p-4 md:p-5 space-y-4 shadow-xl">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-bold text-white">All Income Streams</h3>
-          <span className="text-xs text-gray-400 bg-white/5 px-3 py-1 rounded-full font-semibold">
-            {income.length} Streams Logged
+          <h3 className="text-sm font-bold text-white">All Income Streams</h3>
+          <span className="text-xs text-gray-400 bg-white/5 px-2.5 py-0.5 rounded-full font-semibold border border-white/5">
+            {income.length} Streams
           </span>
         </div>
 
         {income.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 space-y-3">
-            <Wallet className="mx-auto text-purple-400/50" size={48} />
-            <p className="text-base font-semibold">No income streams found for {selectedBank}</p>
-            <p className="text-xs text-gray-500">Click &quot;Add Income&quot; above to log salary, freelance earnings or dividends.</p>
+          <div className="text-center py-10 text-gray-400 space-y-2">
+            <Wallet className="mx-auto text-purple-400/50" size={36} />
+            <p className="text-sm font-semibold">No income streams found for {selectedBank}</p>
+            <p className="text-xs text-gray-500">Click &quot;Add Income&quot; above to log salary or freelance revenue.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-300">
-              <thead>
-                <tr className="text-gray-400 text-xs uppercase font-bold border-b border-white/[0.07] bg-[#141426]">
-                  <th className="p-3 w-10 text-center text-white/40">#</th>
+            <table className="w-full text-left text-xs">
+              <thead className="text-gray-400 text-[11px] uppercase font-semibold border-b border-white/10 bg-[#141426]">
+                <tr>
+                  <th className="p-3 pl-4 w-12 text-center text-gray-500 font-mono">Sr.</th>
                   <th className="p-3">Bank Account</th>
-                  <th className="p-3">Name</th>
+                  <th className="p-3">Source Name</th>
                   <th className="p-3">Amount</th>
                   <th className="p-3">Frequency</th>
                   <th className="p-3">Category</th>
                   <th className="p-3">Date</th>
-                  <th className="p-3 text-right">Action</th>
+                  <th className="p-3 pr-4 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.07]">
+              <tbody className="divide-y divide-white/5">
                 {income.map((i, idx) => (
                   <tr key={i.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="p-3 text-center text-xs font-mono text-white/40 font-bold">#{idx + 1}</td>
+                    <td className="p-3 pl-4 text-center font-mono text-gray-500 font-bold">{idx + 1}</td>
                     <td className="p-3">
-                      <select
-                        value={i.bankAccount || 'HDFC Bank'}
-                        onChange={(e) => {
-                          store.upsertIncome({ ...i, bankAccount: e.target.value });
-                          refresh();
-                        }}
-                        className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold px-2.5 py-1 rounded-xl cursor-pointer focus:outline-none focus:ring-1 focus:ring-purple-400"
-                        title="Click to change Bank Account"
-                      >
-                        <option value="HDFC Bank" className="bg-[#141426] text-white">🏦 HDFC Bank</option>
-                        <option value="ICICI Bank" className="bg-[#141426] text-white">🏦 ICICI Bank</option>
-                        <option value="SBI Bank" className="bg-[#141426] text-white">🏦 SBI Bank</option>
-                      </select>
+                      <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 text-[11px] font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                        🏦 {i.bankAccount || 'HDFC Bank'}
+                      </span>
                     </td>
-                    <td className="p-3 font-semibold text-white">{i.name}</td>
+                    <td className="p-3 font-bold text-white">{i.name}</td>
                     <td className="p-3 text-emerald-400 font-bold">{formatCurrency(i.amount, currency)}</td>
-                    <td className="p-3 text-xs capitalize text-purple-300 font-medium">{i.frequency}</td>
+                    <td className="p-3 capitalize text-gray-400">{i.frequency}</td>
                     <td className="p-3">
-                      <span className="text-xs px-2.5 py-1 rounded-full bg-white/5 border border-white/10 font-semibold" style={{ color: CATEGORY_COLORS[i.category] || '#fff' }}>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 font-semibold" style={{ color: CATEGORY_COLORS[i.category] || '#fff' }}>
                         {i.category}
                       </span>
                     </td>
-                    <td className="p-3 text-xs text-gray-400">{i.date}</td>
-                    <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="p-3 text-gray-400">{formatDate(i.date)}</td>
+                    <td className="p-3 pr-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => { setEditing(i); setModalOpen(true); }}
-                          className="text-gray-400 hover:text-purple-300 p-1.5 transition-colors"
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-purple-600/20 text-gray-400 hover:text-purple-300 border border-white/5 transition-colors"
                           title="Edit income"
                         >
-                          <Pencil size={15} />
+                          <Edit3 size={13} />
                         </button>
                         <button
                           onClick={() => handleDelete(i.id)}
-                          className="text-gray-400 hover:text-rose-400 p-1.5 transition-colors"
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-600/20 text-gray-400 hover:text-rose-300 border border-white/5 transition-colors"
                           title="Delete income"
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </td>
@@ -463,109 +453,119 @@ export default function IncomePage() {
         )}
       </div>
 
-      {/* MODAL: ADD / EDIT INCOME WITH BANK ACCOUNT SELECTOR */}
+      {/* MODAL: ADD / EDIT INCOME */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl">
-            <h2 className="text-lg font-bold text-white">{editing ? 'Edit Income' : 'Add Income Stream'}</h2>
-            <form key={editing?.id || 'new_inc'} onSubmit={handleSaveIncome} className="space-y-4 text-sm">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <h3 className="text-base font-bold text-white">{editing ? 'Edit Income Stream' : 'Add New Income Stream'}</h3>
+              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSave} className="space-y-3.5 text-xs">
               <div>
-                <label className="block text-xs font-semibold text-purple-300 uppercase tracking-wider mb-1">🏦 Bank Account</label>
+                <label className="text-gray-400 block mb-1 font-semibold">Bank Account</label>
                 <select
                   name="bankAccount"
-                  defaultValue={editing?.bankAccount || 'HDFC Bank'}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 font-medium"
+                  defaultValue={editing?.bankAccount || (selectedBank !== 'All' ? selectedBank : 'HDFC Bank')}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white"
                 >
-                  <option value="HDFC Bank" className="bg-[#141426]">🏦 HDFC Bank</option>
-                  <option value="ICICI Bank" className="bg-[#141426]">🏦 ICICI Bank</option>
-                  <option value="SBI Bank" className="bg-[#141426]">🏦 SBI Bank</option>
+                  <option value="HDFC Bank">🏦 HDFC Bank</option>
+                  <option value="ICICI Bank">🏦 ICICI Bank</option>
+                  <option value="SBI Bank">🏦 SBI Bank</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1">Income Stream Name</label>
+                <label className="text-gray-400 block mb-1 font-semibold">Income Source Name</label>
                 <input
-                  required
+                  type="text"
                   name="name"
-                  defaultValue={editing?.name || ''}
-                  placeholder="e.g. Monthly Salary, Freelance Work"
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-400 mb-1">Amount ({currency})</label>
-                <input
                   required
-                  type="number"
-                  step="any"
-                  name="amount"
-                  defaultValue={editing?.amount || ''}
-                  placeholder="0.00"
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 font-bold"
+                  defaultValue={editing?.name || ''}
+                  placeholder="e.g. Monthly Salary, Freelance Client, Dividend"
+                  className="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Category</label>
-                  <select
-                    name="category"
-                    defaultValue={editing?.category || INCOME_CATEGORIES[0]}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white focus:outline-none focus:border-purple-500"
-                  >
-                    {INCOME_CATEGORIES.map(c => <option key={c} value={c} className="bg-[#141426]">{c}</option>)}
-                  </select>
+                  <label className="text-gray-400 block mb-1 font-semibold">Amount ({currency})</label>
+                  <input
+                    type="number"
+                    step="any"
+                    name="amount"
+                    required
+                    defaultValue={editing?.amount || ''}
+                    placeholder="75000"
+                    className="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white font-bold"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Frequency</label>
+                  <label className="text-gray-400 block mb-1 font-semibold">Category</label>
+                  <select
+                    name="category"
+                    defaultValue={editing?.category || 'Salary'}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white"
+                  >
+                    {INCOME_CATEGORIES.map(c => (
+                      <option key={c} value={c} className="bg-[#141426]">{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-400 block mb-1 font-semibold">Frequency</label>
                   <select
                     name="frequency"
                     defaultValue={editing?.frequency || 'monthly'}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white focus:outline-none focus:border-purple-500"
+                    className="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white"
                   >
-                    <option value="monthly" className="bg-[#141426]">Monthly</option>
-                    <option value="yearly" className="bg-[#141426]">Yearly</option>
-                    <option value="weekly" className="bg-[#141426]">Weekly</option>
-                    <option value="quarterly" className="bg-[#141426]">Quarterly</option>
-                    <option value="one-time" className="bg-[#141426]">One-time</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                    <option value="one-time">One-time</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Date</label>
+                  <label className="text-gray-400 block mb-1 font-semibold">Date</label>
                   <input
-                    required
                     type="date"
                     name="date"
+                    required
                     defaultValue={editing?.date || new Date().toISOString().split('T')[0]}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white [color-scheme:dark] focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-1">Note (Optional)</label>
-                  <input
-                    name="note"
-                    defaultValue={editing?.note || ''}
-                    placeholder="Optional notes"
-                    className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-white focus:outline-none focus:border-purple-500"
+                    className="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 mt-6">
+              <div>
+                <label className="text-gray-400 block mb-1 font-semibold">Notes (Optional)</label>
+                <input
+                  type="text"
+                  name="note"
+                  defaultValue={editing?.note || ''}
+                  placeholder="Additional remarks..."
+                  className="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold transition-colors"
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 rounded-xl text-xs font-bold shadow-lg shadow-purple-600/30 transition-all"
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 text-white font-bold shadow-lg"
                 >
                   Save Income
                 </button>
@@ -575,56 +575,52 @@ export default function IncomePage() {
         </div>
       )}
 
-      {/* MODAL: EDIT OPENING BANK BALANCE */}
+      {/* MODAL: EDIT OPENING BALANCE */}
       {editingOpeningBank && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              🏦 Set Opening Balance — {editingOpeningBank.name}
-            </h2>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-bold text-white">Set Opening Balance ({editingOpeningBank.name})</h3>
             <p className="text-xs text-gray-400">
-              Enter your initial/starting account balance. Current bank balance will be calculated as: <br />
-              <span className="text-purple-300 font-mono">Opening Balance + Total Income - Total Expenses</span>
+              Enter the starting baseline balance in your {editingOpeningBank.name} account.
             </p>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 const formData = new FormData(e.currentTarget);
-                const val = parseFloat(formData.get('openingBalance') as string) || 0;
-                store.updateOpeningBalance(editingOpeningBank.name, val);
+                const val = parseFloat(formData.get('balance') as string) || 0;
+                const newOpenings = { ...(state.settings.openingBalances || {}), [editingOpeningBank.name]: val };
+                store.updateSettings({ openingBalances: newOpenings });
                 refresh();
                 setEditingOpeningBank(null);
               }}
-              className="space-y-4 text-sm"
+              className="space-y-4 text-xs"
             >
               <div>
-                <label className="block text-xs font-semibold text-purple-300 uppercase tracking-wider mb-1">
-                  Opening Balance ({currency})
-                </label>
+                <label className="text-gray-400 block mb-1 font-semibold">Opening Amount ({currency})</label>
                 <input
-                  required
                   type="number"
                   step="any"
-                  name="openingBalance"
-                  defaultValue={editingOpeningBank.balance || ''}
-                  placeholder="e.g. 50000"
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-bold text-lg focus:outline-none focus:border-purple-500"
+                  name="balance"
+                  required
+                  defaultValue={editingOpeningBank.balance}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white font-bold text-base"
+                  autoFocus
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setEditingOpeningBank(null)}
-                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold"
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white text-xs font-bold shadow-lg shadow-purple-600/30"
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold shadow-lg"
                 >
-                  Save Opening Balance
+                  Update Balance
                 </button>
               </div>
             </form>
