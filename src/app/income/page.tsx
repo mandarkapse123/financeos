@@ -215,7 +215,7 @@ export default function IncomePage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 text-white min-h-screen">
+    <div className="w-full space-y-6 text-white min-h-screen">
       {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0a0a14] border border-white/[0.08] rounded-2xl p-5 shadow-lg">
         <div>

@@ -473,7 +473,7 @@ export default function RentPortal() {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 text-white bg-[#050505] min-h-screen">
+    <div className="w-full space-y-6 text-white bg-[#050505] min-h-screen">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Rent Portal</h1>

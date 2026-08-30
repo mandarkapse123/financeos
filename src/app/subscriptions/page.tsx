@@ -50,7 +50,7 @@ export default function SubscriptionsPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 text-white min-h-screen">
+    <div className="w-full space-y-6 text-white min-h-screen">
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0e0e1c] border border-white/[0.07] rounded-2xl p-6 shadow-xl">
         <div>

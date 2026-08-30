@@ -173,7 +173,7 @@ export default function ExpensesPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 text-white min-h-screen">
+    <div className="w-full space-y-6 text-white min-h-screen">
       {/* Top Bar Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>

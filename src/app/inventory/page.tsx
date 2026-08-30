@@ -220,7 +220,7 @@ export default function InventoryPage() {
   };
 
   return (
-    <div className="space-y-6 pb-16 max-w-[1400px] mx-auto">
+    <div className="space-y-6 pb-16 w-full">
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl text-xs font-bold border backdrop-blur-md animate-bounce transition-all ${

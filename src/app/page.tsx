@@ -77,7 +77,7 @@ export default function Dashboard() {
   const sbiExpenses = expenses.filter(e => e.bankAccount === 'SBI Bank').reduce((s, e) => s + e.amount, 0);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 text-white min-h-screen">
+    <div className="w-full space-y-6 text-white min-h-screen">
       {/* Upcoming Subscription Renewal Alert (2 Days Prior) */}
       {upcoming2Days.length > 0 && (
         <div className="bg-amber-500/15 border border-amber-500/40 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-pulse">

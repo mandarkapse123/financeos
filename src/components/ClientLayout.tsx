@@ -45,37 +45,43 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   return (
     <StoreProvider>
       <ToastProvider>
-        <div className="flex min-h-screen w-full bg-[#000000] text-slate-100 selection:bg-purple-500/30">
+        <div className="flex min-h-screen w-full bg-[var(--background)] text-[var(--foreground)] selection:bg-purple-500/30 overflow-x-hidden">
+          {/* Left Sidebar */}
           <Sidebar 
             mobileOpen={mobileMenuOpen} 
             setMobileOpen={setMobileMenuOpen} 
             collapsed={sidebarCollapsed}
             setCollapsed={handleToggleCollapse}
           />
+
+          {/* Main Content Area that dynamically squeezes for both Left Sidebar and Right Copilot */}
           <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
             sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-[248px]'
+          } ${
+            copilotOpen ? 'xl:mr-[400px]' : ''
           }`}>
             <TopBar
               onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
               onQuickAdd={() => setQuickAddOpen(true)}
-              onOpenCopilot={() => setCopilotOpen(true)}
+              onOpenCopilot={() => setCopilotOpen(prev => !prev)}
               sidebarCollapsed={sidebarCollapsed}
               setSidebarCollapsed={handleToggleCollapse}
             />
-            <main className="flex-1 p-4 md:p-6 lg:p-7 animate-fade-in w-full max-w-[1720px] mx-auto">
+            <main className="flex-1 p-4 md:p-6 lg:p-7 animate-fade-in w-full">
               {children}
             </main>
           </div>
+
+          {/* Docked Right Agent Copilot Panel */}
+          <AgentCopilot 
+            isOpen={copilotOpen}
+            setIsOpen={setCopilotOpen}
+          />
         </div>
 
         <QuickAddModal
           isOpen={quickAddOpen}
           onClose={() => setQuickAddOpen(false)}
-        />
-
-        <AgentCopilot 
-          isOpen={copilotOpen}
-          setIsOpen={setCopilotOpen}
         />
 
         {typeof window !== 'undefined' && <Agentation />}

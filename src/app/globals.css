@@ -60,13 +60,22 @@ html.light .sidebar-section-title {
   color: #0f172a !important;
 }
 
+[data-theme="light"] .bg-\[\#000000\],
 [data-theme="light"] .bg-\[\#070710\],
-[data-theme="light"] .bg-\[\#050505\] {
+[data-theme="light"] .bg-\[\#050505\],
+[data-theme="light"] .bg-\[\#050508\],
+[data-theme="light"] .bg-\[\#050509\],
+[data-theme="light"] .bg-\[\#07070f\] {
   background-color: #f8fafc !important;
 }
 
 [data-theme="light"] aside,
+[data-theme="light"] header,
 [data-theme="light"] .bg-\[\#0e0e1c\],
+[data-theme="light"] .bg-\[\#09090e\],
+[data-theme="light"] .bg-\[\#0a0a14\],
+[data-theme="light"] .bg-\[\#0c0c1a\],
+[data-theme="light"] .bg-\[\#121222\],
 [data-theme="light"] .bg-\[\#0e0e1c\]\/80 {
   background-color: #ffffff !important;
   border-color: #e2e8f0 !important;
@@ -74,7 +83,10 @@ html.light .sidebar-section-title {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
+[data-theme="light"] .bg-\[\#090912\],
 [data-theme="light"] .bg-\[\#141426\],
+[data-theme="light"] .bg-\[\#11111a\],
+[data-theme="light"] .bg-black\/30,
 [data-theme="light"] .bg-black\/40,
 [data-theme="light"] .bg-black\/50,
 [data-theme="light"] .bg-black\/60 {
