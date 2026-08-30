@@ -43,7 +43,7 @@ function categorizeItem(name: string): string {
   return 'Pantry & Staples';
 }
 
-function parseBlinkitInvoiceText(text: string): { orderId?: string; date?: string; totalAmount?: number; items: ParsedItem[] } {
+function parseBlinkitInvoiceText(text: string): { orderId?: string; date?: string; totalAmount?: number; itemsTotal?: number; deliveryFee?: number; items: ParsedItem[] } {
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   
   let orderId = '';
@@ -65,7 +65,7 @@ function parseBlinkitInvoiceText(text: string): { orderId?: string; date?: strin
       if (dM && !date) date = dM[1];
     }
 
-    const tM = l.match(/Total\s+\d+\s+[\d\.]+\s+[\d\.]+\s+(\d+\.\d{2})/i);
+    const tM = l.match(/^Total\s+(?:\d+\s+)*(?:[\d\.]+\s+)*(\d+\.\d{2})$/i);
     if (tM) {
       invoiceTotal += parseFloat(tM[1]) || 0;
     }
@@ -145,11 +145,14 @@ function parseBlinkitInvoiceText(text: string): { orderId?: string; date?: strin
   }
 
   const calculatedTotal = items.reduce((sum, it) => sum + it.totalAmount, 0);
+  const finalTotal = invoiceTotal > 0 ? invoiceTotal : calculatedTotal;
 
   return {
     orderId: orderId || `B_${Date.now().toString(36).toUpperCase()}`,
     date: date || new Date().toISOString().substring(0, 10),
-    totalAmount: invoiceTotal || calculatedTotal,
+    totalAmount: finalTotal,
+    itemsTotal: calculatedTotal,
+    deliveryFee: Math.max(0, Math.round((finalTotal - calculatedTotal) * 100) / 100),
     items,
   };
 }

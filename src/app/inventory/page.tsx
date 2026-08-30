@@ -7,7 +7,7 @@ import { formatCurrency, formatFull, formatDate } from '@/lib/utils';
 import { 
   Package, Plus, UploadCloud, Search, Trash2, Edit3, 
   MinusCircle, CheckCircle, AlertTriangle, ShoppingBag, 
-  FileText, Check, ArrowRight, X, Sparkles, Filter
+  FileText, Check, ArrowRight, X, Sparkles, Filter, LayoutGrid, List
 } from 'lucide-react';
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string; icon: string }> = {
@@ -30,6 +30,7 @@ export default function InventoryPage() {
   const [selectedCat, setSelectedCat] = useState<string>('All');
   const [selectedStatus, setSelectedStatus] = useState<'All' | 'in_stock' | 'low_stock' | 'consumed'>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Modals
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -335,21 +336,47 @@ export default function InventoryPage() {
             )}
           </div>
 
-          {/* Status Switcher */}
-          <div className="flex items-center gap-1.5 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-            {(['All', 'in_stock', 'low_stock', 'consumed'] as const).map(st => (
+          {/* Status Switcher & View Mode Toggle */}
+          <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+              {(['All', 'in_stock', 'low_stock', 'consumed'] as const).map(st => (
+                <button
+                  key={st}
+                  onClick={() => setSelectedStatus(st)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    selectedStatus === st
+                      ? 'bg-purple-600 text-white shadow-md'
+                      : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                  }`}
+                >
+                  {st === 'All' ? 'All Items' : st === 'in_stock' ? '🟢 In Stock' : st === 'low_stock' ? '🟡 Low Stock' : '⚪ Consumed'}
+                </button>
+              ))}
+            </div>
+
+            {/* View Mode Switcher */}
+            <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 shrink-0">
               <button
-                key={st}
-                onClick={() => setSelectedStatus(st)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                  selectedStatus === st
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                type="button"
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 rounded-lg transition-all ${
+                  viewMode === 'grid' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
                 }`}
+                title="Grid View"
               >
-                {st === 'All' ? 'All Items' : st === 'in_stock' ? '🟢 In Stock' : st === 'low_stock' ? '🟡 Low Stock' : '⚪ Consumed'}
+                <LayoutGrid size={14} />
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className={`p-1.5 rounded-lg transition-all ${
+                  viewMode === 'list' ? 'bg-purple-600 text-white shadow-md' : 'text-gray-400 hover:text-white'
+                }`}
+                title="List / Table View"
+              >
+                <List size={14} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -418,7 +445,131 @@ export default function InventoryPage() {
             </button>
           </div>
         </div>
+      ) : viewMode === 'list' ? (
+        /* LIST / TABLE VIEW */
+        <div className="bg-[#0e0e1c] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#141426] text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-white/10">
+                <tr>
+                  <th className="p-3.5 pl-5">Status & Category</th>
+                  <th className="p-3.5">Item Name & Brand</th>
+                  <th className="p-3.5 text-center">Quantity</th>
+                  <th className="p-3.5">Unit Price</th>
+                  <th className="p-3.5">Total Value</th>
+                  <th className="p-3.5">Purchase Date</th>
+                  <th className="p-3.5 pr-5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredInventory.map(item => {
+                  const catStyle = CATEGORY_COLORS[item.category] || CATEGORY_COLORS['Other'];
+                  const isConsumed = item.status === 'consumed';
+                  const isLowStock = item.status === 'low_stock';
+
+                  return (
+                    <tr 
+                      key={item.id} 
+                      className={`hover:bg-white/[0.02] transition-colors ${
+                        isConsumed ? 'opacity-40 bg-black/20' : isLowStock ? 'bg-amber-500/[0.02]' : ''
+                      }`}
+                    >
+                      <td className="p-3.5 pl-5">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            isConsumed 
+                              ? 'bg-gray-800 text-gray-400 border-gray-700' 
+                              : isLowStock 
+                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' 
+                              : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                          }`}>
+                            {isConsumed ? '⚪ Out' : isLowStock ? '🟡 Low' : '🟢 Stock'}
+                          </span>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border hidden sm:inline-flex items-center gap-1 ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}>
+                            <span>{catStyle.icon}</span>
+                            <span>{item.category}</span>
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="p-3.5">
+                        <p className={`font-bold ${isConsumed ? 'line-through text-gray-500' : 'text-white'}`}>
+                          {item.name}
+                        </p>
+                        {item.notes && (
+                          <span className="text-[10px] text-gray-400 block mt-0.5">{item.notes}</span>
+                        )}
+                      </td>
+
+                      <td className="p-3.5 text-center">
+                        <span className="font-mono font-bold text-purple-300 bg-purple-500/10 px-2.5 py-1 rounded-lg border border-purple-500/20">
+                          {item.quantity} {item.unit || 'pcs'}
+                        </span>
+                      </td>
+
+                      <td className="p-3.5 font-semibold text-gray-300">
+                        {formatFull(item.price, currency)}
+                      </td>
+
+                      <td className="p-3.5 font-black text-white">
+                        {formatFull(item.totalAmount || (item.price * item.quantity), currency)}
+                      </td>
+
+                      <td className="p-3.5 text-gray-400 whitespace-nowrap">
+                        {formatDate(item.purchaseDate)}
+                      </td>
+
+                      <td className="p-3.5 pr-5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {!isConsumed && (
+                            <button
+                              onClick={() => {
+                                store.consumeInventoryItem(item.id, 1);
+                                refresh();
+                                showToast(`🥄 Used 1 ${item.unit || 'pc'} of ${item.name}!`, 'info');
+                              }}
+                              className="px-2.5 py-1 bg-white/10 hover:bg-emerald-600 text-white rounded-lg font-semibold flex items-center gap-1 transition-all text-[10px]"
+                              title="Mark 1 as consumed"
+                            >
+                              <MinusCircle size={11} /> Use 1
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => {
+                              setEditingItem(item);
+                              setIsManualModalOpen(true);
+                            }}
+                            className="p-1.5 bg-white/5 hover:bg-purple-600 text-gray-400 hover:text-white rounded-lg transition-all"
+                            title="Edit Item"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete ${item.name} from inventory?`)) {
+                                store.deleteInventoryItem(item.id);
+                                refresh();
+                                showToast(`🗑️ Deleted ${item.name}`, 'info');
+                              }
+                            }}
+                            className="p-1.5 bg-white/5 hover:bg-rose-600 text-gray-400 hover:text-white rounded-lg transition-all"
+                            title="Delete Item"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
+        /* GRID VIEW */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredInventory.map(item => {
             const catStyle = CATEGORY_COLORS[item.category] || CATEGORY_COLORS['Other'];
@@ -642,10 +793,19 @@ export default function InventoryPage() {
                       <p className="text-sm font-bold text-white">{parsedInvoiceData.date}</p>
                     </div>
                     <div>
-                      <span className="text-[10px] text-gray-400 uppercase font-semibold">Total Amount</span>
-                      <p className="text-sm font-black text-emerald-400">
+                      <span className="text-[10px] text-gray-400 uppercase font-semibold">Items Subtotal</span>
+                      <p className="text-sm font-bold text-gray-300">
                         {formatFull(
                           parsedInvoiceData.items.filter(i => i.selected).reduce((sum, i) => sum + i.totalAmount, 0),
+                          currency
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-emerald-400 uppercase font-bold">Invoice Grand Total</span>
+                      <p className="text-sm font-black text-emerald-400">
+                        {formatFull(
+                          parsedInvoiceData.totalAmount || parsedInvoiceData.items.filter(i => i.selected).reduce((sum, i) => sum + i.totalAmount, 0),
                           currency
                         )}
                       </p>
