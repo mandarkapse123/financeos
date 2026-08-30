@@ -43,89 +43,86 @@ function categorizeItem(name: string): string {
   return 'Pantry & Staples';
 }
 
-function parseTextLines(text: string): { orderId?: string; date?: string; totalAmount?: number; items: ParsedItem[] } {
+function parseBlinkitInvoiceText(text: string): { orderId?: string; date?: string; totalAmount?: number; items: ParsedItem[] } {
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const items: ParsedItem[] = [];
+  
+  let orderId = '';
+  let date = '';
+  let invoiceTotal = 0;
 
-  let orderId: string | undefined;
-  let date: string | undefined;
-  let totalAmount: number | undefined;
+  // 1. Extract Order ID & Date
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const oM = l.match(/Order\s*Id\s*[:\-]?\s*([0-9a-zA-Z]+)/i);
+    if (oM && !orderId) orderId = oM[1];
 
-  // 1. Find Order ID, Date & Total
-  for (const line of lines) {
-    const orderMatch = line.match(/(?:Order\s*(?:Id|#|no\.?)|Invoice\s*(?:no\.?|#))\s*[:\-]?\s*([a-zA-Z0-9_\-]+)/i);
-    if (orderMatch && !orderId) {
-      orderId = orderMatch[1];
+    if (/Invoice/i.test(l) && /Date/i.test(lines[i+1] || '')) {
+      const nextL = lines[i+2] || '';
+      const dM = nextL.match(/[:\-]?\s*([0-9a-zA-Z\-]+)/);
+      if (dM && !date) date = dM[1];
+    } else {
+      const dM = l.match(/Invoice\s*Date\s*[:\-]?\s*([0-9a-zA-Z\-]+)/i);
+      if (dM && !date) date = dM[1];
     }
 
-    const dateMatch = line.match(/Invoice\s*Date\s*:\s*([0-9a-zA-Z\-]+)/i) ||
-      line.match(/(\d{1,2}[\/\-\.](?:\d{1,2}|[a-zA-Z]{3,})[\/\-\.]\d{2,4})/);
-    if (dateMatch && !date) {
-      date = dateMatch[1];
-    }
-
-    const totalMatch = line.match(/(?:Total(?:\s*paid|\s*amount|\s*bill)?|Grand\s*Total|Amount\s*in\s*Words)\s*[:\-]?\s*₹?\s*([\d,]+\.?\d*)/i);
-    if (totalMatch && !totalAmount) {
-      const num = parseFloat(totalMatch[1].replace(/,/g, ''));
-      if (!isNaN(num) && num > 0) totalAmount = num;
+    const tM = l.match(/Total\s+\d+\s+[\d\.]+\s+[\d\.]+\s+(\d+\.\d{2})/i);
+    if (tM) {
+      invoiceTotal += parseFloat(tM[1]) || 0;
     }
   }
 
-  // 2. Parse Items
+  const items: ParsedItem[] = [];
+
+  // 2. Parse Items via Multi-Line Table Matching
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Filter out common header/footer / delivery charges
-    if (/^tax\s*invoice|blink\s*commerce|delivery and other charges|handling charge|gstin|fssai|cin|pan|authorized signatory|whether the tax is payable/i.test(line)) {
-      continue;
-    }
+    // Check if line is the table number row: e.g. "270.00 21.00 1 237.14 2.50 5.93 2.50 5.93 0.00 0.00 249.00"
+    // Or "78.00 0.00 1 78.00 0.00 0.00 0.00 0.00 0.00 0.00 78.00"
+    const numRowMatch = line.match(/^(\d+\.\d{2})\s+(\d+\.\d{2})\s+(\d+)\s+[\d\.\s]+?(\d+\.\d{2})$/);
+    if (numRowMatch) {
+      const qty = parseInt(numRowMatch[3], 10) || 1;
+      const totalAmount = parseFloat(numRowMatch[4]);
 
-    // Pattern 1: Exact Blinkit Table Format
-    // "1 8901030935220 Bru Instant Coffee (100 g)(Pouch) (HSN-21011120) 270.00 21.00 1 237.14 2.50 5.93 2.50 5.93 0.00 0.00 249.00"
-    // Or "1 8906009501024 Chitale Full Cream Milk(Pouch) (HSN-04014000) 78.00 0.00 1 78.00 0.00 0.00 0.00 0.00 0.00 0.00 78.00"
-    const blinkitMatch = line.match(/^\d+\s+(?:\d{4,16}\s+)?(.*?)(?:\s*\(HSN[^\)]*\))?\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+)\s+.*?(\d+\.\d{2})$/i);
-    if (blinkitMatch) {
-      let rawName = blinkitMatch[1].trim();
-      rawName = rawName.replace(/\(HSN[^\)]*\)/gi, '').trim();
-      const qty = parseInt(blinkitMatch[4], 10) || 1;
-      const total = parseFloat(blinkitMatch[5]);
+      // Collect item name from preceding lines
+      const nameParts: string[] = [];
+      let k = i - 1;
+      while (k >= 0) {
+        const prevLine = lines[k];
+        // Stop if we hit a table header, section boundary, or another number row
+        if (/^Tax Invoice|^Sold By|^Sr\. no|^Order Id|^Total|Delivery and other|\d+\.\d{2}\s+\d+\.\d{2}\s+\d+/i.test(prevLine)) {
+          break;
+        }
+        // Skip UPC barcodes / single digit row numbers
+        if (/^\d{1,4}$/.test(prevLine) || /^\d{8,16}$/.test(prevLine)) {
+          if (/^\d{1,2}$/.test(prevLine)) {
+            break;
+          }
+          k--;
+          continue;
+        }
 
-      if (rawName && !rawName.toLowerCase().includes('delivery') && total > 0) {
-        items.push({
-          name: rawName,
-          category: categorizeItem(rawName),
-          quantity: qty,
-          unit: rawName.match(/\b(\d+\s*(?:g|kg|ml|l|pcs|pack|cup|pouch|bottle))\b/i)?.[1] || 'pcs',
-          price: total / qty,
-          totalAmount: total,
-        });
-        continue;
+        nameParts.unshift(prevLine);
+        k--;
       }
-    }
 
-    // Pattern 2: Generic "Item Name ... Qty: 2 ... Price: 50" or "Amul Milk 2 x ₹28 ₹56"
-    const genericMatch = line.match(/^(?:(?:\d+[\.\)]\s*)?([a-zA-Z0-9\s\(\)\-\,\.\+]+?))\s+(?:qty:?\s*)?(\d+)\s*(?:x\s*|@\s*)?₹?\s*([\d,]+\.?\d*)\s*(?:=\s*₹?\s*([\d,]+\.?\d*))?$/i);
-    if (genericMatch) {
-      const rawName = genericMatch[1].trim();
-      const qty = parseInt(genericMatch[2], 10) || 1;
-      const p1 = parseFloat(genericMatch[3].replace(/,/g, ''));
-      const p2 = genericMatch[4] ? parseFloat(genericMatch[4].replace(/,/g, '')) : (p1 * qty);
-      const total = p2 || (p1 * qty);
+      let fullName = nameParts.join(' ').replace(/\(HSN[^\)]*\)/gi, '').trim();
+      fullName = fullName.replace(/^[\d\s]+/, '').trim();
 
-      if (rawName && rawName.length > 2 && !rawName.toLowerCase().includes('total') && total > 0) {
+      if (fullName && !fullName.toLowerCase().includes('delivery') && totalAmount > 0) {
         items.push({
-          name: rawName,
-          category: categorizeItem(rawName),
+          name: fullName,
+          category: categorizeItem(fullName),
           quantity: qty,
-          unit: rawName.match(/\b(\d+\s*(?:g|kg|ml|l|pcs|pack|cup|pouch|bottle))\b/i)?.[1] || 'pcs',
-          price: total / qty,
-          totalAmount: total,
+          unit: fullName.match(/\b(\d+\s*(?:g|kg|ml|l|pcs|pack|cup|pouch|bottle))\b/i)?.[1] || 'pcs',
+          price: totalAmount / qty,
+          totalAmount: totalAmount,
         });
       }
     }
   }
 
-  // Fallback if no items matched via strict patterns
+  // Fallback if no multi-line table items found (single line format)
   if (items.length === 0) {
     for (const line of lines) {
       if (/^tax|blinkit|subtotal|gstin|pan|order|invoice|delivery/i.test(line)) continue;
@@ -152,7 +149,7 @@ function parseTextLines(text: string): { orderId?: string; date?: string; totalA
   return {
     orderId: orderId || `B_${Date.now().toString(36).toUpperCase()}`,
     date: date || new Date().toISOString().substring(0, 10),
-    totalAmount: totalAmount || calculatedTotal,
+    totalAmount: invoiceTotal || calculatedTotal,
     items,
   };
 }
@@ -175,24 +172,10 @@ export async function POST(req: Request) {
 
         if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
           try {
-            // 1. Try high-performance unpdf text extraction across all PDF pages
             const { text } = await extractText(buffer, { mergePages: true });
             textContent = text || '';
           } catch (unpdfErr) {
             console.error('unpdf error:', unpdfErr);
-          }
-
-          // 2. Fallback to @firecrawl/anydoc markdown converter if unpdf produced empty output
-          if (!textContent || textContent.trim().length === 0) {
-            try {
-              const anydoc = require('@firecrawl/anydoc');
-              if (typeof anydoc.toMarkdownBytes === 'function') {
-                const md = await anydoc.toMarkdownBytes(buffer);
-                textContent = md || '';
-              }
-            } catch (anydocErr) {
-              console.error('anydoc error:', anydocErr);
-            }
           }
         } else {
           textContent = Buffer.from(bytes).toString('utf-8');
@@ -210,7 +193,7 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    const parsed = parseTextLines(textContent);
+    const parsed = parseBlinkitInvoiceText(textContent);
 
     return NextResponse.json({
       success: true,
