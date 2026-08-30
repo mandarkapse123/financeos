@@ -55,15 +55,17 @@ export default function ExpensesPage() {
 
   const allCombinedExpenses = rawCombined.filter(e => {
     if (!e || !e.amount) return false;
-    if (deletedList.includes(e.id)) return false;
-    const dateStr = (e.date || '').substring(0, 10);
-    const catLower = (e.category || '').toLowerCase();
-    const noteLower = (e.note || e.name || '').toLowerCase().trim();
-    const sig = `${dateStr}_${e.amount}_${catLower}_${noteLower}`;
-    if (deletedList.includes(sig)) return false;
+    if (e.id && deletedList.includes(e.id)) return false;
+    if (e.id && e.id.startsWith('sheet_row_')) {
+      const dateStr = (e.date || '').substring(0, 10);
+      const catLower = (e.category || '').toLowerCase();
+      const noteLower = (e.note || e.name || '').toLowerCase().trim();
+      const sig = `${dateStr}_${e.amount}_${catLower}_${noteLower}`;
+      if (deletedList.includes(sig)) return false;
+    }
 
-    if (seenKeys.has(e.id)) return false;
-    seenKeys.add(e.id);
+    if (e.id && seenKeys.has(e.id)) return false;
+    if (e.id) seenKeys.add(e.id);
     return true;
   }).sort((a, b) => {
     const dComp = (b.date || '').localeCompare(a.date || '');

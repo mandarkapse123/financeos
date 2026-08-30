@@ -42,21 +42,17 @@ export default function DailyPage() {
 
   const masterDailyLogs = rawCombined.filter(d => {
     if (!d || !d.amount) return false;
-    const dateStr = (d.date || '').substring(0, 10);
-    const catLower = (d.category || '').toLowerCase();
-    const noteLower = (d.note || '').toLowerCase().trim();
-    const signature = `${dateStr}_${d.amount}_${catLower}_${noteLower}`;
-
-    // Skip if explicitly deleted by user in FinanceOS!
-    if (deletedList.includes(d.id) || deletedList.includes(signature)) {
-      return false;
+    if (d.id && deletedList.includes(d.id)) return false;
+    if (d.id && d.id.startsWith('sheet_row_')) {
+      const dateStr = (d.date || '').substring(0, 10);
+      const catLower = (d.category || '').toLowerCase();
+      const noteLower = (d.note || '').toLowerCase().trim();
+      const signature = `${dateStr}_${d.amount}_${catLower}_${noteLower}`;
+      if (deletedList.includes(signature)) return false;
     }
 
     if (d.id && seenIds.has(d.id)) return false;
     if (d.id) seenIds.add(d.id);
-
-    if (seenSigs.has(signature)) return false;
-    seenSigs.add(signature);
     return true;
   }).sort((a, b) => {
     const dComp = (b.date || '').localeCompare(a.date || '');
