@@ -54,6 +54,7 @@ function getDefaultState(): AppState {
     rentEntries: [],
     rentExpenses: [],
     rentReceipts: [],
+    inventory: [],
   };
 }
 
@@ -301,6 +302,10 @@ class Store {
       if (Array.isArray(remoteState.rentReceipts)) {
         const res = mergeArray(this.state.rentReceipts, remoteState.rentReceipts);
         if (res.changed) { this.state.rentReceipts = res.merged as any; updated = true; }
+      }
+      if (Array.isArray(remoteState.inventory)) {
+        const res = mergeArray(this.state.inventory || [], remoteState.inventory);
+        if (res.changed) { this.state.inventory = res.merged as any; updated = true; }
       }
 
       if (updated) {
@@ -885,6 +890,112 @@ class Store {
     this.save();
   }
   deleteRentReceipt(id: string) { this.state.rentReceipts = this.remove(this.state.rentReceipts, id); this.save(); }
+
+  // Inventory / Pantry Management
+  getInventory(): AppState['inventory'] {
+    return this.getForAccount(this.state.inventory || []);
+  }
+
+  upsertInventoryItem(item: NonNullable<AppState['inventory']>[0]) {
+    if (!this.state.inventory) this.state.inventory = [];
+    this.state.inventory = this.upsert(this.state.inventory, item);
+    this.save();
+  }
+
+  deleteInventoryItem(id: string) {
+    if (!this.state.inventory) this.state.inventory = [];
+    this.state.inventory = this.remove(this.state.inventory, id);
+    this.save();
+  }
+
+  consumeInventoryItem(id: string, amount: number = 1) {
+    if (!this.state.inventory) return;
+    const item = this.state.inventory.find(i => i.id === id);
+    if (!item) return;
+
+    const newQty = Math.max(0, (item.quantity || 1) - amount);
+    item.quantity = newQty;
+    if (newQty === 0) {
+      item.status = 'consumed';
+    } else if (newQty <= 1) {
+      item.status = 'low_stock';
+    } else {
+      item.status = 'in_stock';
+    }
+    this.save();
+  }
+
+  importBlinkitInvoice(invoiceData: {
+    orderId?: string;
+    date: string;
+    totalAmount: number;
+    bankAccount?: string;
+    paidBy?: string;
+    items: Array<{
+      name: string;
+      category: string;
+      quantity: number;
+      unit?: string;
+      price: number;
+      totalAmount: number;
+    }>;
+  }) {
+    if (!this.state.inventory) this.state.inventory = [];
+    const accId = this.state.currentAccountId;
+    const dateStr = parseSafeDate(invoiceData.date);
+
+    // 1. Stock items into Inventory
+    const newItems: NonNullable<AppState['inventory']>[0][] = invoiceData.items.map(item => ({
+      id: uid(),
+      accountId: accId,
+      name: item.name,
+      category: item.category || 'Pantry & Staples',
+      quantity: item.quantity || 1,
+      unit: item.unit || 'pcs',
+      price: item.price,
+      totalAmount: item.totalAmount || (item.price * item.quantity),
+      purchaseDate: dateStr,
+      orderId: invoiceData.orderId,
+      status: 'in_stock' as const,
+      notes: invoiceData.orderId ? `Blinkit Order #${invoiceData.orderId}` : 'Blinkit Purchase',
+    }));
+
+    this.state.inventory = [...newItems, ...this.state.inventory];
+
+    // 2. Add Expense entry for Blinkit
+    const expId = `blinkit_${uid()}`;
+    const expenseEntry: AppState['expenses'][0] = {
+      id: expId,
+      accountId: accId,
+      bankAccount: invoiceData.bankAccount || 'HDFC Bank',
+      paidBy: invoiceData.paidBy || this.state.settings.name || 'Mandar',
+      amount: invoiceData.totalAmount,
+      category: 'Blinkit',
+      name: invoiceData.orderId ? `Blinkit Order #${invoiceData.orderId}` : 'Blinkit Groceries',
+      date: dateStr,
+      note: `${invoiceData.items.length} items stocked to inventory`,
+    };
+
+    this.state.expenses = [expenseEntry, ...this.state.expenses];
+
+    // 3. Add to Daily Log
+    const dailyEntry: AppState['daily'][0] = {
+      id: expId,
+      accountId: accId,
+      bankAccount: invoiceData.bankAccount || 'HDFC Bank',
+      paidBy: invoiceData.paidBy || this.state.settings.name || 'Mandar',
+      amount: invoiceData.totalAmount,
+      category: 'Blinkit',
+      paymentMethod: 'UPI',
+      date: dateStr,
+      note: invoiceData.orderId ? `Blinkit Order #${invoiceData.orderId}` : 'Blinkit Groceries',
+    };
+
+    this.state.daily = [dailyEntry, ...this.state.daily];
+
+    this.save();
+    return { stockedCount: newItems.length, expense: expenseEntry };
+  }
 
   cleanRentDuplicates(): { cleanedEntries: number; cleanedExpenses: number } {
     let cleanedEntries = 0;

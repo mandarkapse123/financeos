@@ -48,7 +48,8 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen?: bo
     {
       title: 'Daily',
       items: [
-        { label: '📅 Daily Log', href: '/daily' }
+        { label: '📅 Daily Log', href: '/daily' },
+        { label: '📦 Inventory', href: '/inventory' }
       ]
     },
     {

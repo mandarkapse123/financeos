@@ -154,6 +154,22 @@ export interface AppSettings {
   theme?: 'dark' | 'light';
 }
 
+export interface InventoryItem {
+  id: string;
+  accountId: string;
+  name: string;
+  category: string; // 'Dairy & Eggs', 'Pantry & Staples', 'Fruits & Vegetables', 'Snacks & Munchies', 'Beverages', 'Personal Care', 'Cleaning & Household', 'Health & Supplements', 'Other'
+  quantity: number;
+  unit?: string; // 'pcs', 'kg', 'g', 'L', 'ml', 'pack', 'bottle'
+  price: number;
+  totalAmount: number;
+  purchaseDate: string;
+  orderId?: string;
+  status: 'in_stock' | 'low_stock' | 'consumed';
+  notes?: string;
+  expiryDate?: string;
+}
+
 export interface AppState {
   settings: AppSettings;
   accounts: Account[];
@@ -167,9 +183,22 @@ export interface AppState {
   rentEntries: RentEntry[];
   rentExpenses: RentExpense[];
   rentReceipts: RentReceipt[];
+  inventory?: InventoryItem[];
 }
 
 // Constants
+export const INVENTORY_CATEGORIES = [
+  'Dairy & Eggs',
+  'Pantry & Staples',
+  'Fruits & Vegetables',
+  'Snacks & Munchies',
+  'Beverages',
+  'Personal Care',
+  'Cleaning & Household',
+  'Health & Supplements',
+  'Other'
+] as string[];
+
 export const EXPENSE_CATEGORIES = [
   'Petrol', 'Blinkit', 'Food & Dining', 'Medical', 'Clothing & Shopping', 'Health Supplements',
   'Transport', 'Housing / Rent', 'Entertainment', 'Education',

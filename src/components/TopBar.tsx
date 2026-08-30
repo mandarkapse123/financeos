@@ -51,6 +51,7 @@ export default function TopBar({ onMenuToggle, onQuickAdd }: TopBarProps) {
       case '/investments': return { title: 'Investments', subtitle: 'Portfolio tracking' };
       case '/goals': return { title: 'Goals', subtitle: 'Financial targets' };
       case '/daily': return { title: 'Daily Log', subtitle: 'Day-to-day tracking' };
+      case '/inventory': return { title: 'Pantry & Inventory', subtitle: 'Blinkit invoice parsing & household supplies' };
       case '/reports': return { title: 'Reports', subtitle: 'Analytics and insights' };
       case '/rent': return { title: 'Rent Portal', subtitle: 'Property management' };
       case '/settings': return { title: 'Settings', subtitle: 'System configuration' };
