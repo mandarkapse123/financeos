@@ -7,6 +7,7 @@ import QuickAddModal from './QuickAddModal';
 import { ToastProvider } from './Toast';
 import { StoreProvider } from '@/lib/store-context';
 import { Agentation } from 'agentation';
+import AgentCopilot from './AgentCopilot';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -32,6 +33,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           isOpen={quickAddOpen}
           onClose={() => setQuickAddOpen(false)}
         />
+
+        <AgentCopilot />
 
         {typeof window !== 'undefined' && <Agentation />}
       </ToastProvider>
