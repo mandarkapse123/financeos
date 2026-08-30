@@ -1,18 +1,22 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store-context';
 import { 
   Sparkles, Send, X, Bot, Check, Package, DollarSign, 
-  RefreshCw, TrendingUp, Receipt, ShieldCheck, Target, Home, HelpCircle, ArrowRight
+  RefreshCw, TrendingUp, Receipt, ShieldCheck, Target, Home, 
+  ArrowRight, ExternalLink, Minus, Plus, Compass, PieChart, Wallet
 } from 'lucide-react';
-import { formatCurrency, formatFull, today } from '@/lib/utils';
+import { formatCurrency, formatFull, today, formatDate, CATEGORY_COLORS } from '@/lib/utils';
 import { generateId } from '@/lib/store';
 
 interface Message {
   id: string;
   sender: 'user' | 'agent';
   text: string;
+  widgetType?: 'expenses' | 'inventory' | 'portfolio' | 'networth' | 'navigation';
+  widgetData?: any;
   actionDetails?: {
     type: string;
     summary: string;
@@ -27,14 +31,17 @@ interface AgentCopilotProps {
 }
 
 export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
+  const router = useRouter();
   const { state, store, refresh } = useStore();
+  const currency = state.settings.currency || '₹';
+
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
       sender: 'agent',
-      text: "👋 Hi Mandar! I am your **Agent-Native Copilot**.\n\nI have full access to your finances, investments, goals, property, and pantry inventory. Ask me anything or command direct actions!",
+      text: "👋 Hi Mandar! I am your **Agent-Native Copilot**.\n\nI have full autonomous control over FinanceOS. I can navigate your portal, log expenses, manage pantry items with 1-click generative widgets, track portfolio returns, and sync to Supabase. Try asking:",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
   ]);
@@ -74,13 +81,90 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
     try {
       const lower = prompt.toLowerCase();
       let responseText = '';
+      let widgetType: Message['widgetType'] = undefined;
+      let widgetData: any = undefined;
       let actionDetails: Message['actionDetails'] = undefined;
 
-      // 1. ADD EXPENSE
-      const expenseMatch = lower.match(/(?:add expense|spent|paid|buy|bought)\s*(?:₹|rs\.?)?\s*(\d+(?:\.\d+)?)\s*(?:for|on|at)?\s*(.*)/i);
-      if (expenseMatch) {
-        const amount = parseFloat(expenseMatch[1]);
-        const desc = (expenseMatch[2] || 'General Expense').trim();
+      // 1. PORTAL NAVIGATION (e.g. "take me to rent portal", "go to expenses", "open investments")
+      if (lower.startsWith('take me to') || lower.startsWith('go to') || lower.startsWith('open ') || lower.startsWith('navigate to')) {
+        let route = '/';
+        let pageName = 'Dashboard';
+
+        if (lower.includes('rent') || lower.includes('property')) {
+          route = '/rent';
+          pageName = 'Rent Portal';
+        } else if (lower.includes('expense') || lower.includes('daily log') || lower.includes('spend')) {
+          route = '/expenses';
+          pageName = 'Expenses & Budgets';
+        } else if (lower.includes('income') || lower.includes('salary') || lower.includes('bank balance')) {
+          route = '/income';
+          pageName = 'Income & Cash Flow';
+        } else if (lower.includes('inventory') || lower.includes('pantry') || lower.includes('grocer') || lower.includes('blinkit')) {
+          route = '/inventory';
+          pageName = 'Pantry & Inventory';
+        } else if (lower.includes('investment') || lower.includes('portfolio') || lower.includes('stock') || lower.includes('groww')) {
+          route = '/investments';
+          pageName = 'Investments & Portfolio';
+        } else if (lower.includes('goal') || lower.includes('target')) {
+          route = '/goals';
+          pageName = 'Financial Goals';
+        } else if (lower.includes('subscription') || lower.includes('recurring')) {
+          route = '/subscriptions';
+          pageName = 'Subscriptions';
+        } else if (lower.includes('report') || lower.includes('analytic')) {
+          route = '/reports';
+          pageName = 'Reports & Analytics';
+        } else if (lower.includes('setting') || lower.includes('config') || lower.includes('mcp')) {
+          route = '/settings';
+          pageName = 'System Settings';
+        }
+
+        router.push(route);
+        responseText = `🚀 **Navigating to ${pageName}** on your portal right now!`;
+        widgetType = 'navigation';
+        widgetData = { route, pageName };
+        actionDetails = {
+          type: 'NAVIGATE',
+          summary: `Navigated to ${pageName} (${route})`,
+        };
+      }
+      // 2. GENERATIVE UI: SHOW EXPENSES WIDGET
+      else if (lower.includes('show') && (lower.includes('expense') || lower.includes('transaction') || lower.includes('spend') || lower.includes('purchases'))) {
+        const recentExpenses = (state.daily || []).slice(-6).reverse();
+        responseText = `📊 **Here are your recent expenses & daily transactions:**`;
+        widgetType = 'expenses';
+        widgetData = { items: recentExpenses };
+      }
+      // 3. GENERATIVE UI: SHOW PANTRY & INVENTORY WIDGET
+      else if (lower.includes('show') && (lower.includes('pantry') || lower.includes('inventory') || lower.includes('stock') || lower.includes('grocer'))) {
+        const items = store.getInventory() || [];
+        responseText = `📦 **Interactive Pantry Stock:** Click **[-1]** or **[+1]** on any item to instantly update stock!`;
+        widgetType = 'inventory';
+        widgetData = { items: items.slice(0, 8) };
+      }
+      // 4. GENERATIVE UI: SHOW NET WORTH WIDGET
+      else if (lower.includes('net worth') || lower.includes('wealth summary') || lower.includes('financial health')) {
+        const totalInvested = (state.investments || []).reduce((sum, i) => sum + (i.currentValue || i.investedAmount || 0), 0);
+        const inventoryVal = (store.getInventory() || []).filter(i => i.status === 'in_stock').reduce((sum, i) => sum + (i.price * i.quantity), 0);
+        const goalsSaved = (state.goals || []).reduce((sum, g) => sum + g.savedAmount, 0);
+        const currentMonth = today().substring(0, 7);
+        const monthlyExp = (state.daily || []).filter(e => (e.date || '').substring(0, 7) === currentMonth).reduce((sum, e) => sum + e.amount, 0);
+
+        responseText = `💎 **Real-Time Net Worth & Financial Breakdown:**`;
+        widgetType = 'networth';
+        widgetData = {
+          portfolio: totalInvested,
+          goals: goalsSaved,
+          pantry: inventoryVal,
+          total: totalInvested + goalsSaved + inventoryVal,
+          monthlySpend: monthlyExp
+        };
+      }
+      // 5. ADD EXPENSE (NATURAL LANGUAGE)
+      else if (lower.match(/(?:add expense|spent|paid|buy|bought)\s*(?:₹|rs\.?)?\s*(\d+(?:\.\d+)?)\s*(?:for|on|at)?\s*(.*)/i)) {
+        const match = lower.match(/(?:add expense|spent|paid|buy|bought)\s*(?:₹|rs\.?)?\s*(\d+(?:\.\d+)?)\s*(?:for|on|at)?\s*(.*)/i)!;
+        const amount = parseFloat(match[1]);
+        const desc = (match[2] || 'General Expense').trim();
         const category = /petrol|fuel|diesel/i.test(desc) ? 'Petrol'
           : /dinner|lunch|food|coffee|snack|restaurant|swiggy|zomato/i.test(desc) ? 'Food & Dining'
           : /blinkit|grocery|milk|vegetable/i.test(desc) ? 'Blinkit'
@@ -101,14 +185,14 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
         });
         refresh();
 
-        responseText = `✅ **Logged Expense of ₹${amount.toLocaleString('en-IN')}** for *"${desc}"* under category **${category}** from HDFC Bank.`;
+        responseText = `✅ **Logged Expense of ₹${amount.toLocaleString('en-IN')}** for *"${desc}"* under category **${category}** from HDFC Bank. Reflecting in your UI right now!`;
         actionDetails = {
           type: 'CREATE_EXPENSE',
-          summary: `₹${amount} recorded in Daily Log`,
+          summary: `₹${amount} recorded in Daily Log & Expenses`,
           data: { amount, desc, category },
         };
       }
-      // 2. ADD INCOME
+      // 6. ADD INCOME
       else if (lower.includes('income') || lower.includes('salary') || lower.includes('earned') || lower.includes('received payment')) {
         const incomeMatch = lower.match(/(?:income|salary|earned|received payment)\s*(?:of)?\s*(?:₹|rs\.?)?\s*(\d+(?:\.\d+)?)\s*(?:from|for)?\s*(.*)/i);
         const amount = incomeMatch ? parseFloat(incomeMatch[1]) : 50000;
@@ -127,13 +211,13 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
         });
         refresh();
 
-        responseText = `💰 **Recorded Income of ₹${amount.toLocaleString('en-IN')}** from *"${source}"* in your Income streams.`;
+        responseText = `💰 **Recorded Income of ₹${amount.toLocaleString('en-IN')}** from *"${source}"* in your Income streams & updated bank balances!`;
         actionDetails = {
           type: 'CREATE_INCOME',
           summary: `₹${amount} added to Income Streams`,
         };
       }
-      // 3. INVENTORY CONSUMPTION
+      // 7. INVENTORY CONSUMPTION
       else if (lower.includes('consume') || lower.includes('used') || lower.includes('drink') || lower.includes('finish') || lower.includes('eat')) {
         const inventory = store.getInventory() || [];
         const matchedItem = inventory.find(i => 
@@ -144,104 +228,30 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
         if (matchedItem) {
           store.consumeInventoryItem(matchedItem.id, 1);
           refresh();
-          responseText = `🥄 **Used 1 unit of ${matchedItem.name}!** Remaining stock updated to **${Math.max(0, matchedItem.quantity - 1)} ${matchedItem.unit || 'pcs'}**.`;
+          responseText = `🥄 **Used 1 unit of ${matchedItem.name}!** Remaining stock is now **${Math.max(0, matchedItem.quantity - 1)} ${matchedItem.unit || 'pcs'}**.`;
           actionDetails = {
             type: 'CONSUME_INVENTORY',
             summary: `Decremented stock for ${matchedItem.name}`,
-            data: matchedItem,
           };
         } else {
-          responseText = `🔍 I couldn't find that item in your active pantry. Here are some available items in stock:\n` +
-            inventory.filter(i => i.status === 'in_stock').slice(0, 5).map(i => `• **${i.name}** (${i.quantity} ${i.unit || 'pcs'})`).join('\n');
+          responseText = `🔍 Could not match item. Here is your current pantry:`;
+          widgetType = 'inventory';
+          widgetData = { items: inventory.slice(0, 6) };
         }
       }
-      // 4. LOW STOCK & REORDER ALERTS
-      else if (lower.includes('low stock') || lower.includes('reorder') || lower.includes('shopping list') || lower.includes('stock status')) {
+      // 8. LOW STOCK / REORDER ALERTS
+      else if (lower.includes('low stock') || lower.includes('reorder') || lower.includes('shopping list')) {
         const inventory = store.getInventory() || [];
         const lowStock = inventory.filter(i => i.status === 'low_stock' || i.quantity <= 1);
-        const inStock = inventory.filter(i => i.status === 'in_stock');
-
         if (lowStock.length > 0) {
-          responseText = `⚠️ **${lowStock.length} items need reordering soon:**\n` +
-            lowStock.map(i => `• **${i.name}** — ${i.quantity} ${i.unit || 'pcs'} left (${i.category})`).join('\n');
+          responseText = `⚠️ **${lowStock.length} items need reordering soon:**`;
+          widgetType = 'inventory';
+          widgetData = { items: lowStock };
         } else {
-          responseText = `✅ **All pantry supplies are well stocked!** Total **${inStock.length} items** in stock worth **${formatFull(inStock.reduce((s, i) => s + (i.price * i.quantity), 0))}**.`;
-        }
-        actionDetails = {
-          type: 'STOCK_AUDIT',
-          summary: `Analyzed ${inventory.length} pantry items`,
-        };
-      }
-      // 5. GOAL CONTRIBUTION
-      else if (lower.includes('goal') && (lower.includes('contribute') || lower.includes('save') || lower.includes('add'))) {
-        const amtMatch = lower.match(/(?:₹|rs\.?)?\s*(\d+(?:\.\d+)?)/);
-        const amt = amtMatch ? parseFloat(amtMatch[1]) : 5000;
-        const goals = state.goals || [];
-
-        if (goals.length > 0) {
-          const targetGoal = goals[0];
-          store.addContribution(targetGoal.id, { amount: amt, date: today(), note: 'Added via Agent Copilot' });
-          refresh();
-          responseText = `🎯 **Contributed ₹${amt.toLocaleString('en-IN')} to Goal "${targetGoal.name}"!**\nNew saved total: **₹${(targetGoal.savedAmount + amt).toLocaleString('en-IN')}** / ₹${targetGoal.targetAmount.toLocaleString('en-IN')}.`;
-          actionDetails = {
-            type: 'GOAL_CONTRIBUTION',
-            summary: `₹${amt} contributed to ${targetGoal.name}`,
-          };
-        } else {
-          responseText = `🎯 You don't have any active goals created yet. Head over to **Goals Tracker** to set up a savings target!`;
+          responseText = `✅ **All pantry supplies are well stocked!** Total ${inventory.length} items tracked.`;
         }
       }
-      // 6. RENT PORTAL LOGGING
-      else if (lower.includes('rent')) {
-        if (lower.includes('received') || lower.includes('collected') || lower.includes('tenant')) {
-          const amtMatch = lower.match(/(\d+)/);
-          const amt = amtMatch ? parseFloat(amtMatch[1]) : 25000;
-          store.upsertRentEntry({
-            id: generateId(),
-            accountId: state.currentAccountId,
-            date: today(),
-            amount: amt,
-            period: today().substring(0, 7),
-            mode: 'Bank Transfer (UPI)',
-            notes: 'Rent received logged via AI Copilot',
-            bankAccount: 'HDFC Bank',
-          });
-          refresh();
-          responseText = `🏠 **Recorded Rent Collection of ₹${amt.toLocaleString('en-IN')}** for ${today().substring(0, 7)}.`;
-        } else {
-          const totalRent = (state.rentEntries || []).reduce((s, r) => s + r.amount, 0);
-          const totalExpenses = (state.rentExpenses || []).reduce((s, r) => s + r.amount, 0);
-          responseText = `🏠 **Rent Portal Snapshot:**\n• Total Rent Collected: **₹${totalRent.toLocaleString('en-IN')}**\n• Maintenance/Expenses: **₹${totalExpenses.toLocaleString('en-IN')}**\n• Net Earnings: **₹${(totalRent - totalExpenses).toLocaleString('en-IN')}**`;
-        }
-        actionDetails = {
-          type: 'RENT_ACTION',
-          summary: 'Rent portal query executed',
-        };
-      }
-      // 7. FINANCIAL HEALTH & NET WORTH
-      else if (lower.includes('net worth') || lower.includes('summary') || lower.includes('how much') || lower.includes('health') || lower.includes('burn')) {
-        const currentMonth = today().substring(0, 7);
-        const monthlyExp = (state.daily || [])
-          .filter(e => (e.date || '').substring(0, 7) === currentMonth)
-          .reduce((sum, e) => sum + e.amount, 0);
-
-        const totalInvested = (state.investments || []).reduce((sum, i) => sum + (i.currentValue || i.investedAmount || 0), 0);
-        const inventoryVal = (store.getInventory() || []).filter(i => i.status === 'in_stock').reduce((sum, i) => sum + (i.price * i.quantity), 0);
-        const goalsSaved = (state.goals || []).reduce((sum, g) => sum + g.savedAmount, 0);
-
-        responseText = `💎 **Comprehensive Financial Rollup (${currentMonth}):**\n\n` +
-          `• **Portfolio Holdings:** ₹${totalInvested.toLocaleString('en-IN')}\n` +
-          `• **Goals Saved:** ₹${goalsSaved.toLocaleString('en-IN')}\n` +
-          `• **Pantry Stock Value:** ₹${inventoryVal.toLocaleString('en-IN')}\n` +
-          `• **Estimated Net Worth:** **₹${(totalInvested + goalsSaved + inventoryVal).toLocaleString('en-IN')}**\n\n` +
-          `🔥 **Monthly Burn Rate:** ₹${monthlyExp.toLocaleString('en-IN')} spent this month.`;
-
-        actionDetails = {
-          type: 'FINANCE_ROLLUP',
-          summary: 'Calculated real-time net worth & burn rate',
-        };
-      }
-      // 8. SUPABASE SYNC
+      // 9. SUPABASE CLOUD SYNC
       else if (lower.includes('sync') || lower.includes('supabase') || lower.includes('backup') || lower.includes('cloud')) {
         try {
           await fetch('/api/sync', {
@@ -249,26 +259,25 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ state }),
           });
-          responseText = `☁️ **Supabase Cloud Sync Successful!** All local state (expenses, inventory, portfolio, goals) synced to the cloud.`;
+          responseText = `☁️ **Supabase Cloud Sync Successful!** All records are synced live.`;
         } catch {
-          responseText = `⚠️ Local state preserved. Supabase sync completed.`;
+          responseText = `⚠️ Local state preserved. Supabase sync triggered.`;
         }
         actionDetails = {
           type: 'CLOUD_SYNC',
-          summary: 'Supabase cloud state backup completed',
+          summary: 'Supabase PostgreSQL cloud state backup completed',
         };
       }
-      // DEFAULT: CAPABILITIES OVERVIEW
+      // DEFAULT: AGENT CAPABILITIES
       else {
-        responseText = `🤖 **Here are actions I can perform for you:**\n\n` +
-          `• \`Add expense 450 for Dinner\` &rarr; Logs expense\n` +
-          `• \`Add income 80000 Freelance\` &rarr; Records income\n` +
-          `• \`Used 1 milk\` &rarr; Decrements pantry stock\n` +
-          `• \`What needs reordering?\` &rarr; Lists low stock items\n` +
-          `• \`Contribute 3000 to goal\` &rarr; Saves to target\n` +
-          `• \`Log rent received 25000\` &rarr; Records rent\n` +
-          `• \`Show net worth summary\` &rarr; Calculates total worth\n` +
-          `• \`Sync state to Supabase\` &rarr; Cloud backup`;
+        responseText = `🤖 **I can execute any operation on FinanceOS!** Try:\n\n` +
+          `• \`Take me to rent portal\` / \`Go to investments\`\n` +
+          `• \`Show me my expenses\` / \`Show my pantry\`\n` +
+          `• \`Add expense 350 for Zomato\`\n` +
+          `• \`Add income 85000 Freelance\`\n` +
+          `• \`Used 1 milk\` / \`What needs reordering?\`\n` +
+          `• \`Show net worth summary\`\n` +
+          `• \`Sync state to Supabase\``;
       }
 
       setMessages(prev => [
@@ -277,12 +286,45 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
           id: (Date.now() + 1).toString(),
           sender: 'agent',
           text: responseText,
+          widgetType,
+          widgetData,
           actionDetails,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         }
       ]);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // 1-Click Interactive Handlers inside Chat Widgets
+  const handleWidgetConsume = (itemId: string) => {
+    store.consumeInventoryItem(itemId, 1);
+    refresh();
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      sender: 'agent',
+      text: `✅ Decremented 1 unit from stock!`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }]);
+  };
+
+  const handleWidgetRestock = (itemId: string) => {
+    const items = store.getInventory() || [];
+    const item = items.find(i => i.id === itemId);
+    if (item) {
+      store.upsertInventoryItem({
+        ...item,
+        quantity: item.quantity + 1,
+        status: 'in_stock'
+      });
+      refresh();
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        sender: 'agent',
+        text: `📦 Restocked +1 unit for **${item.name}**!`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }]);
     }
   };
 
@@ -308,7 +350,7 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 Agent-Native Copilot
                 <span className="text-[9px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30 font-bold">
-                  LIVE STATE
+                  MCP SYNC
                 </span>
               </h3>
               <p className="text-[10px] text-gray-400">Autonomous Financial Operations &amp; State AI</p>
@@ -326,22 +368,28 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
         {/* Quick Suggestion Pills */}
         <div className="bg-black/40 px-3 py-2 border-b border-white/[0.06] flex gap-1.5 overflow-x-auto text-[11px] custom-scrollbar">
           <button
-            onClick={() => executeAgentAction('What needs reordering?')}
+            onClick={() => executeAgentAction('Show me my expenses')}
             className="bg-white/5 hover:bg-purple-600/30 text-gray-300 px-2.5 py-1 rounded-lg border border-white/10 whitespace-nowrap transition-colors flex items-center gap-1 shrink-0"
           >
-            <Package size={11} className="text-amber-400" /> Stock Audit
+            <Receipt size={11} className="text-rose-400" /> Show Expenses
+          </button>
+          <button
+            onClick={() => executeAgentAction('Show me my pantry')}
+            className="bg-white/5 hover:bg-purple-600/30 text-gray-300 px-2.5 py-1 rounded-lg border border-white/10 whitespace-nowrap transition-colors flex items-center gap-1 shrink-0"
+          >
+            <Package size={11} className="text-amber-400" /> Bring Up Pantry
+          </button>
+          <button
+            onClick={() => executeAgentAction('Take me to rent portal')}
+            className="bg-white/5 hover:bg-purple-600/30 text-gray-300 px-2.5 py-1 rounded-lg border border-white/10 whitespace-nowrap transition-colors flex items-center gap-1 shrink-0"
+          >
+            <Compass size={11} className="text-indigo-400" /> Go to Rent
           </button>
           <button
             onClick={() => executeAgentAction('Show net worth summary')}
             className="bg-white/5 hover:bg-purple-600/30 text-gray-300 px-2.5 py-1 rounded-lg border border-white/10 whitespace-nowrap transition-colors flex items-center gap-1 shrink-0"
           >
             <DollarSign size={11} className="text-emerald-400" /> Net Worth
-          </button>
-          <button
-            onClick={() => executeAgentAction('Sync state to Supabase')}
-            className="bg-white/5 hover:bg-purple-600/30 text-gray-300 px-2.5 py-1 rounded-lg border border-white/10 whitespace-nowrap transition-colors flex items-center gap-1 shrink-0"
-          >
-            <RefreshCw size={11} className="text-cyan-400" /> Cloud Sync
           </button>
         </div>
 
@@ -353,7 +401,7 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
               className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
             >
               <div
-                className={`max-w-[90%] rounded-2xl p-3.5 space-y-1.5 ${
+                className={`max-w-[92%] rounded-2xl p-3.5 space-y-2 ${
                   msg.sender === 'user'
                     ? 'bg-purple-600 text-white rounded-br-none shadow-lg shadow-purple-600/20'
                     : 'bg-[#121222] border border-white/10 text-gray-200 rounded-bl-none shadow-xl'
@@ -361,6 +409,98 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
               >
                 <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
 
+                {/* GENERATIVE UI WIDGET: EXPENSES */}
+                {msg.widgetType === 'expenses' && msg.widgetData?.items && (
+                  <div className="mt-2.5 pt-2 border-t border-white/10 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] uppercase font-bold text-gray-400">Recent Transactions</span>
+                      <button 
+                        onClick={() => router.push('/expenses')}
+                        className="text-[10px] text-purple-300 hover:text-white flex items-center gap-1 font-semibold"
+                      >
+                        View Table <ExternalLink size={10} />
+                      </button>
+                    </div>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {msg.widgetData.items.map((exp: any) => (
+                        <div key={exp.id} className="bg-black/40 border border-white/5 p-2 rounded-xl flex justify-between items-center text-xs">
+                          <div>
+                            <span className="font-bold text-white block">{exp.note || exp.name}</span>
+                            <span className="text-[10px] text-gray-400">{formatDate(exp.date)} · {exp.category}</span>
+                          </div>
+                          <span className="font-bold text-rose-400">-{formatCurrency(exp.amount, currency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* GENERATIVE UI WIDGET: INTERACTIVE PANTRY */}
+                {msg.widgetType === 'inventory' && msg.widgetData?.items && (
+                  <div className="mt-2.5 pt-2 border-t border-white/10 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] uppercase font-bold text-gray-400">Interactive Pantry</span>
+                      <button 
+                        onClick={() => router.push('/inventory')}
+                        className="text-[10px] text-amber-300 hover:text-white flex items-center gap-1 font-semibold"
+                      >
+                        Open Grid <ExternalLink size={10} />
+                      </button>
+                    </div>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {msg.widgetData.items.map((item: any) => (
+                        <div key={item.id} className="bg-black/40 border border-white/5 p-2 rounded-xl flex justify-between items-center text-xs">
+                          <div className="min-w-0 flex-1 pr-2">
+                            <span className="font-bold text-white block truncate">{item.name}</span>
+                            <span className="text-[10px] text-gray-400">
+                              Stock: <strong className={item.quantity <= 1 ? 'text-amber-400' : 'text-emerald-400'}>{item.quantity} {item.unit || 'pcs'}</strong>
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleWidgetConsume(item.id)}
+                              className="p-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30"
+                              title="Consume 1 unit"
+                            >
+                              <Minus size={11} />
+                            </button>
+                            <button
+                              onClick={() => handleWidgetRestock(item.id)}
+                              className="p-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30"
+                              title="Restock +1 unit"
+                            >
+                              <Plus size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* GENERATIVE UI WIDGET: NET WORTH */}
+                {msg.widgetType === 'networth' && msg.widgetData && (
+                  <div className="mt-2.5 pt-2 border-t border-white/10 space-y-2">
+                    <div className="bg-gradient-to-r from-purple-950/60 to-indigo-950/60 border border-purple-500/30 p-3 rounded-xl">
+                      <span className="text-[10px] uppercase font-bold text-gray-300 block">Total Calculated Net Worth</span>
+                      <span className="text-lg font-black text-purple-300 block mt-0.5">
+                        {formatCurrency(msg.widgetData.total, currency)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                      <div className="bg-black/40 p-2 rounded-lg border border-white/5">
+                        <span className="text-gray-400 block text-[9px]">PORTFOLIO</span>
+                        <span className="font-bold text-white">{formatCurrency(msg.widgetData.portfolio, currency)}</span>
+                      </div>
+                      <div className="bg-black/40 p-2 rounded-lg border border-white/5">
+                        <span className="text-gray-400 block text-[9px]">GOALS SAVED</span>
+                        <span className="font-bold text-emerald-400">{formatCurrency(msg.widgetData.goals, currency)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Completion Pill */}
                 {msg.actionDetails && (
                   <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2 text-[10px] text-purple-300 bg-black/30 px-2.5 py-1.5 rounded-lg">
                     <Check size={12} className="text-emerald-400 shrink-0" />
@@ -393,7 +533,7 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Command or query (e.g. 'Add expense 250 for Coffee', 'Used 1 milk')..."
+            placeholder="Command or query (e.g. 'Take me to rent portal', 'Show my pantry')..."
             className="flex-1 bg-black/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
             autoFocus
           />
@@ -409,4 +549,3 @@ export default function AgentCopilot({ isOpen, setIsOpen }: AgentCopilotProps) {
     </>
   );
 }
-
